@@ -12,6 +12,7 @@
 #include <asm/gpio.h>
 #include <asm/io.h>
 #include <linux/bitops.h>
+#include <dm/device_compat.h>
 
 #define P(n)	(0x0000 + 0x10 + (n))	  /* Port Register */
 #define PM(n)	(0x0100 + 0x20 + (n) * 2) /* Port Mode Register */
@@ -160,6 +161,6 @@ U_BOOT_DRIVER(rzg2l_gpio) = {
 	.name   = "rzg2l-gpio",
 	.id     = UCLASS_GPIO,
 	.ops    = &rzg2l_gpio_ops,
-	.priv_auto_alloc_size = sizeof(struct rzg2l_gpio_priv),
+	.priv_auto = sizeof(struct rzg2l_gpio_priv),
 	.probe  = rzg2l_gpio_probe,
 };

@@ -451,7 +451,7 @@ static int ravb_dmac_init(struct udevice *dev)
 	if ((pdata->phy_interface == PHY_INTERFACE_MODE_RGMII_ID) ||
 	    (pdata->phy_interface == PHY_INTERFACE_MODE_RGMII_TXID))
 		writel(APSR_TDM, eth->iobase + RAVB_REG_APSR);
-
+#endif
 	if (!dev_read_u32(dev, "rx-internal-delay-ps", &delay)) {
 		/* Valid values are 0 and 1800, according to DT bindings */
 		if (delay) {
@@ -479,7 +479,6 @@ static int ravb_dmac_init(struct udevice *dev)
 	}
 
 	writel(mode, eth->iobase + RAVB_REG_APSR);
->>>>>>> v2022.10
 
 	return 0;
 }

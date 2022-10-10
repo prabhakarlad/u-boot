@@ -12,6 +12,8 @@
 #include <linux/bitops.h>
 #include <linux/io.h>
 #include <linux/err.h>
+#include <dm/device_compat.h>
+#include <dm/device.h>
 
 #define P(n)	(0x0000 + 0x10 + (n))	  /* Port Register */
 #define PM(n)	(0x0100 + 0x20 + (n) * 2) /* Port Mode Register */
@@ -51,7 +53,7 @@ static void rzg2l_pinctrl_set_function(struct rzg2l_pinctrl_priv *priv,
 
 static int rzg2l_pinctrl_set_state(struct udevice *dev, struct udevice *config)
 {
-	struct rzg2l_pinctrl_priv *priv = dev_get_platdata(dev);
+	struct rzg2l_pinctrl_priv *priv = dev_get_plat(dev);
 	u16 port;
 	u16 port_max = (u16)dev_get_driver_data(dev);
 	u8 pin, func;
@@ -99,7 +101,7 @@ const struct pinctrl_ops rzg2l_pinctrl_ops  = {
 
 static int rzg2l_pinctrl_probe(struct udevice *dev)
 {
-	struct rzg2l_pinctrl_priv *priv = dev_get_platdata(dev);
+	struct rzg2l_pinctrl_priv *priv = dev_get_plat(dev);
 	ofnode node;
 
 	priv->regs = dev_read_addr_ptr(dev);
@@ -135,6 +137,6 @@ U_BOOT_DRIVER(rzg2l_pinctrl) = {
 	.id		= UCLASS_PINCTRL,
 	.of_match	= rzg2l_pinctrl_match,
 	.probe		= rzg2l_pinctrl_probe,
-	.platdata_auto_alloc_size = sizeof(struct rzg2l_pinctrl_priv),
+	.priv_auto = sizeof(struct rzg2l_pinctrl_priv),
 	.ops		= &rzg2l_pinctrl_ops,
 };
