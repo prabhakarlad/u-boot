@@ -27,7 +27,7 @@
  * @buf: Buffer to hold the path
  * @buf_len: Length of buffer
  * @cur: Current position in the buffer
- * @return new position in buffer after adding @dev, or -ve on error
+ * Return: new position in buffer after adding @dev, or -ve on error
  */
 static int acpi_device_path_fill(const struct udevice *dev, char *buf,
 				 size_t buf_len, int cur)
@@ -97,7 +97,7 @@ enum acpi_dev_status acpi_device_status(const struct udevice *dev)
  *
  * Write a forward length for a large resource (2 bytes)
  *
- * @return pointer to the zero word (for fixing up later)
+ * Return: pointer to the zero word (for fixing up later)
  */
 static void *largeres_write_len_f(struct acpi_ctx *ctx)
 {
@@ -422,7 +422,7 @@ int acpi_device_add_power_res(struct acpi_ctx *ctx, u32 tx_state_val,
 
 	/* Method (_ON, 0, Serialized) */
 	acpigen_write_method_serialized(ctx, "_ON", 0);
-	if (reset_gpio) {
+	if (has_reset) {
 		ret = acpigen_set_enable_tx_gpio(ctx, tx_state_val, dw0_read,
 						 dw0_write, &reset, true);
 		if (ret)
@@ -487,7 +487,50 @@ int acpi_device_add_power_res(struct acpi_ctx *ctx, u32 tx_state_val,
 	return 0;
 }
 
-/* ACPI 6.3 section 6.4.3.8.2.1 - I2cSerialBus() */
+int acpi_device_write_dsm_i2c_hid(struct acpi_ctx *ctx,
+				  int hid_desc_reg_offset)
+{
+	int ret;
+
+	acpigen_write_dsm_start(ctx);
+	ret = acpigen_write_dsm_uuid_start(ctx, ACPI_DSM_I2C_HID_UUID);
+	if (ret)
+		return log_ret(ret);
+
+	acpigen_write_dsm_uuid_start_cond(ctx, 0);
+	/* ToInteger (Arg1, Local2) */
+	acpigen_write_to_integer(ctx, ARG1_OP, LOCAL2_OP);
+	/* If (LEqual (Local2, 0x0)) */
+	acpigen_write_if_lequal_op_int(ctx, LOCAL2_OP, 0x0);
+	/*   Return (Buffer (One) { 0x1f }) */
+	acpigen_write_return_singleton_buffer(ctx, 0x1f);
+	acpigen_pop_len(ctx);	/* Pop : If */
+	/* Else */
+	acpigen_write_else(ctx);
+	/*   If (LEqual (Local2, 0x1)) */
+	acpigen_write_if_lequal_op_int(ctx, LOCAL2_OP, 0x1);
+	/*     Return (Buffer (One) { 0x3f }) */
+	acpigen_write_return_singleton_buffer(ctx, 0x3f);
+	acpigen_pop_len(ctx);	/* Pop : If */
+	/*   Else */
+	acpigen_write_else(ctx);
+	/*     Return (Buffer (One) { 0x0 }) */
+	acpigen_write_return_singleton_buffer(ctx, 0x0);
+	acpigen_pop_len(ctx);	/* Pop : Else */
+	acpigen_pop_len(ctx);	/* Pop : Else */
+	acpigen_write_dsm_uuid_end_cond(ctx);
+
+	acpigen_write_dsm_uuid_start_cond(ctx, 1);
+	acpigen_write_return_byte(ctx, hid_desc_reg_offset);
+	acpigen_write_dsm_uuid_end_cond(ctx);
+
+	acpigen_write_dsm_uuid_end(ctx);
+	acpigen_write_dsm_end(ctx);
+
+	return 0;
+}
+
+/* ACPI 6.3 section 6.4.3.8.2.1 - I2cSerialBusV2() */
 static void acpi_device_write_i2c(struct acpi_ctx *ctx,
 				  const struct acpi_i2c *i2c)
 {
@@ -554,12 +597,12 @@ static void acpi_device_write_i2c(struct acpi_ctx *ctx,
  * @dev: I2C device to convert
  * @i2c: Place to put the new structure
  * @scope: Scope of the I2C device (this is the controller path)
- * @return chip address of device
+ * Return: chip address of device
  */
 static int acpi_device_set_i2c(const struct udevice *dev, struct acpi_i2c *i2c,
 			       const char *scope)
 {
-	struct dm_i2c_chip *chip = dev_get_parent_platdata(dev);
+	struct dm_i2c_chip *chip = dev_get_parent_plat(dev);
 	struct udevice *bus = dev_get_parent(dev);
 
 	memset(i2c, '\0', sizeof(*i2c));
@@ -676,15 +719,15 @@ static void acpi_device_write_spi(struct acpi_ctx *ctx, const struct acpi_spi *s
  * @dev: SPI device to convert
  * @spi: Place to put the new structure
  * @scope: Scope of the SPI device (this is the controller path)
- * @return 0 (always)
+ * Return: 0 (always)
  */
 static int acpi_device_set_spi(const struct udevice *dev, struct acpi_spi *spi,
 			       const char *scope)
 {
-	struct dm_spi_slave_platdata *plat;
+	struct dm_spi_slave_plat *plat;
 	struct spi_slave *slave = dev_get_parent_priv(dev);
 
-	plat = dev_get_parent_platdata(slave->dev);
+	plat = dev_get_parent_plat(slave->dev);
 	memset(spi, '\0', sizeof(*spi));
 	spi->device_select = plat->cs;
 	spi->device_select_polarity = SPI_POLARITY_LOW;
@@ -741,16 +784,6 @@ static const char *acpi_name_from_id(enum uclass_id id)
 	}
 }
 
-static int acpi_check_seq(const struct udevice *dev)
-{
-	if (dev->req_seq == -1) {
-		log_warning("Device '%s' has no seq\n", dev->name);
-		return log_msg_ret("no seq", -ENXIO);
-	}
-
-	return dev->req_seq;
-}
-
 /* If you change this function, add test cases to dm_test_acpi_get_name() */
 int acpi_device_infer_name(const struct udevice *dev, char *out_name)
 {
@@ -783,29 +816,18 @@ int acpi_device_infer_name(const struct udevice *dev, char *out_name)
 		}
 	}
 	if (!name) {
-		int num;
-
 		switch (id) {
 		/* DSDT: acpi/lpss.asl */
 		case UCLASS_SERIAL:
-			num = acpi_check_seq(dev);
-			if (num < 0)
-				return num;
-			sprintf(out_name, "URT%d", num);
+			sprintf(out_name, "URT%d", dev_seq(dev));
 			name = out_name;
 			break;
 		case UCLASS_I2C:
-			num = acpi_check_seq(dev);
-			if (num < 0)
-				return num;
-			sprintf(out_name, "I2C%d", num);
+			sprintf(out_name, "I2C%d", dev_seq(dev));
 			name = out_name;
 			break;
 		case UCLASS_SPI:
-			num = acpi_check_seq(dev);
-			if (num < 0)
-				return num;
-			sprintf(out_name, "SPI%d", num);
+			sprintf(out_name, "SPI%d", dev_seq(dev));
 			name = out_name;
 			break;
 		default:

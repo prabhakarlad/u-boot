@@ -80,6 +80,8 @@
 #include <linux/io.h>
 #else
 #include <common.h>
+#include <dm.h>
+#include <dm/device_compat.h>
 #include <usb.h>
 #include <linux/bitops.h>
 #include <linux/bug.h>
@@ -87,9 +89,9 @@
 #include <linux/usb/ch9.h>
 #include <linux/usb/gadget.h>
 #include <linux/usb/musb.h>
+#include <linux/usb/usb_urb_compat.h>
 #include <asm/io.h>
 #include "linux-compat.h"
-#include "usb-compat.h"
 #endif
 
 #include "musb_core.h"
@@ -1524,7 +1526,7 @@ static int __devinit musb_core_init(u16 musb_type, struct musb *musb)
 /*-------------------------------------------------------------------------*/
 
 #if defined(CONFIG_SOC_OMAP2430) || defined(CONFIG_SOC_OMAP3430) || \
-	defined(CONFIG_ARCH_OMAP4)
+	defined(CONFIG_ARCH_OMAP4) || defined(CONFIG_ARCH_U8500)
 
 static irqreturn_t generic_interrupt(int irq, void *__hci)
 {

@@ -19,11 +19,14 @@
 #include <common.h>
 #include <cpu_func.h>
 #include <log.h>
+#include <sort.h>
 #include <asm/cache.h>
+#include <asm/global_data.h>
 #include <asm/io.h>
 #include <asm/mp.h>
 #include <asm/msr.h>
 #include <asm/mtrr.h>
+#include <linux/log2.h>
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -66,9 +69,10 @@ static void set_var_mtrr(uint reg, uint type, uint64_t start, uint64_t size)
 
 void mtrr_read_all(struct mtrr_info *info)
 {
+	int reg_count = mtrr_get_var_count();
 	int i;
 
-	for (i = 0; i < MTRR_COUNT; i++) {
+	for (i = 0; i < reg_count; i++) {
 		info->mtrr[i].base = native_read_msr(MTRR_PHYS_BASE_MSR(i));
 		info->mtrr[i].mask = native_read_msr(MTRR_PHYS_MASK_MSR(i));
 	}
@@ -76,10 +80,11 @@ void mtrr_read_all(struct mtrr_info *info)
 
 void mtrr_write_all(struct mtrr_info *info)
 {
+	int reg_count = mtrr_get_var_count();
 	struct mtrr_state state;
 	int i;
 
-	for (i = 0; i < MTRR_COUNT; i++) {
+	for (i = 0; i < reg_count; i++) {
 		mtrr_open(&state, true);
 		wrmsrl(MTRR_PHYS_BASE_MSR(i), info->mtrr[i].base);
 		wrmsrl(MTRR_PHYS_MASK_MSR(i), info->mtrr[i].mask);
@@ -104,7 +109,7 @@ static void read_mtrrs(void *arg)
 /**
  * mtrr_copy_to_aps() - Copy the MTRRs from the boot CPU to other CPUs
  *
- * @return 0 on success, -ve on failure
+ * Return: 0 on success, -ve on failure
  */
 static int mtrr_copy_to_aps(void)
 {
@@ -124,6 +129,16 @@ static int mtrr_copy_to_aps(void)
 	return 0;
 }
 
+static int h_comp_mtrr(const void *p1, const void *p2)
+{
+	const struct mtrr_request *req1 = p1;
+	const struct mtrr_request *req2 = p2;
+
+	s64 diff = req1->start - req2->start;
+
+	return diff < 0 ? -1 : diff > 0 ? 1 : 0;
+}
+
 int mtrr_commit(bool do_caches)
 {
 	struct mtrr_request *req = gd->arch.mtrr_req;
@@ -139,13 +154,10 @@ int mtrr_commit(bool do_caches)
 	debug("open\n");
 	mtrr_open(&state, do_caches);
 	debug("open done\n");
+	qsort(req, gd->arch.mtrr_req_count, sizeof(*req), h_comp_mtrr);
 	for (i = 0; i < gd->arch.mtrr_req_count; i++, req++)
-		set_var_mtrr(i, req->type, req->start, req->size);
+		mtrr_set_next_var(req->type, req->start, req->size);
 
-	/* Clear the ones that are unused */
-	debug("clear\n");
-	for (; i < MTRR_COUNT; i++)
-		wrmsrl(MTRR_PHYS_MASK_MSR(i), 0);
 	debug("close\n");
 	mtrr_close(&state, do_caches);
 	debug("mtrr done\n");
@@ -168,6 +180,9 @@ int mtrr_add_request(int type, uint64_t start, uint64_t size)
 	if (!gd->arch.has_mtrr)
 		return -ENOSYS;
 
+	if (!is_power_of_2(size))
+		return -EINVAL;
+
 	if (gd->arch.mtrr_req_count == MAX_MTRR_REQUESTS)
 		return -ENOSPC;
 	req = &gd->arch.mtrr_req[gd->arch.mtrr_req_count++];
@@ -184,7 +199,7 @@ int mtrr_add_request(int type, uint64_t start, uint64_t size)
 	return 0;
 }
 
-static int get_var_mtrr_count(void)
+int mtrr_get_var_count(void)
 {
 	return msr_read(MSR_MTRR_CAP_MSR).lo & MSR_MTRR_CAP_VCNT;
 }
@@ -195,7 +210,7 @@ static int get_free_var_mtrr(void)
 	int vcnt;
 	int i;
 
-	vcnt = get_var_mtrr_count();
+	vcnt = mtrr_get_var_count();
 
 	/* Identify the first var mtrr which is not valid */
 	for (i = 0; i < vcnt; i++) {
@@ -211,6 +226,9 @@ static int get_free_var_mtrr(void)
 int mtrr_set_next_var(uint type, uint64_t start, uint64_t size)
 {
 	int mtrr;
+
+	if (!is_power_of_2(size))
+		return -EINVAL;
 
 	mtrr = get_free_var_mtrr();
 	if (mtrr < 0)

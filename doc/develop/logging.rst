@@ -21,23 +21,12 @@ is visible from the basic console output.
 U-Boot's logging feature aims to satisfy this goal for both users and
 developers.
 
-
 Logging levels
 --------------
 
-There are a number logging levels available, in increasing order of verbosity:
+There are a number logging levels available.
 
-* LOGL_EMERG - Printed before U-Boot halts
-* LOGL_ALERT - Indicates action must be taken immediate or U-Boot will crash
-* LOGL_CRIT - Indicates a critical error that will cause boot failure
-* LOGL_ERR - Indicates an error that may cause boot failure
-* LOGL_WARNING - Warning about an unexpected condition
-* LOGL_NOTE - Important information about progress
-* LOGL_INFO - Information about normal boot progress
-* LOGL_DEBUG - Debug information (useful for debugging a driver or subsystem)
-* LOGL_DEBUG_CONTENT - Debug message showing full message content
-* LOGL_DEBUG_IO - Debug message showing hardware I/O access
-
+See enum :c:type:`log_level_t`
 
 Logging category
 ----------------
@@ -46,16 +35,7 @@ Logging can come from a wide variety of places within U-Boot. Each log message
 has a category which is intended to allow messages to be filtered according to
 their source.
 
-The following main categories are defined:
-
-* LOGC_NONE - Unknown category (e.g. a debug() statement)
-* UCLASS\_... - Related to a particular uclass (e.g. UCLASS_USB)
-* LOGC_ARCH - Related to architecture-specific code
-* LOGC_BOARD - Related to board-specific code
-* LOGC_CORE - Related to core driver-model support
-* LOGC_DT - Related to device tree control
-* LOGC_EFI - Related to EFI implementation
-
+See enum :c:type:`log_category_t`
 
 Enabling logging
 ----------------
@@ -72,6 +52,9 @@ If CONFIG_LOG is not set, then no logging will be available.
 The above have SPL and TPL versions also, e.g. CONFIG_SPL_LOG_MAX_LEVEL and
 CONFIG_TPL_LOG_MAX_LEVEL.
 
+If logging is disabled, the default behaviour is to output any message at
+level LOGL_INFO and below. If logging is disabled and DEBUG is defined (at
+the very top of a C file) then any message at LOGL_DEBUG will be written.
 
 Temporary logging within a single file
 --------------------------------------
@@ -83,15 +66,76 @@ Sometimes it is useful to turn on logging just in one file. You can use this
    #define LOG_DEBUG
 
 to enable building in of all logging statements in a single file. Put it at
-the top of the file, before any #includes.
+the top of the file, before any #includes and any message in the file will be
+written, regardless of the value of CONFIG_LOG_DEFAULT_LEVEL.
 
-To actually get U-Boot to output this you need to also set the default logging
-level - e.g. set CONFIG_LOG_DEFAULT_LEVEL to 7 (LOGL_DEBUG) or more. Otherwise
-debug output is suppressed and will not be generated.
+Using DEBUG
+-----------
 
+U-Boot has traditionally used a #define called DEBUG to enable debugging on a
+file-by-file basis but LOG_DEBUG are intended to replace it with the logging
+facilities; DEBUG is activated when LOG_DEBUG is activated.
+
+With logging enabled, debug() statements are interpreted as logging output
+with a level of LOGL_DEBUG and a category of LOG_CATEGORY.
+
+With logging disabled, the debug() macro compiles to a printf() statement
+if DEBUG is enabled and to an empty statement if not.
+
+Logging statements
+------------------
+
+The main logging function is:
+
+.. code-block:: c
+
+   log(category, level, format_string, ...)
+
+Also debug() and error() will generate log records  - these use LOG_CATEGORY
+as the category, so you should #define this right at the top of the source
+file to ensure the category is correct.
+
+Generally each log format_string ends with a newline. If it does not, then the
+next log statement will have the LOGRECF_CONT flag set. This can be used to
+continue the statement on the same line as the previous one without emitting
+new header information (such as category/level). This behaviour is implemented
+with log_console. Here is an example that prints a list all on one line with
+the tags at the start:
+
+.. code-block:: c
+
+   log_debug("Here is a list:");
+   for (i = 0; i < count; i++)
+      log_debug(" item %d", i);
+   log_debug("\n");
+
+Also see the special category LOGL_CONT and level LOGC_CONT.
+
+You can also define CONFIG_LOG_ERROR_RETURN to enable the log_ret() macro. This
+can be used whenever your function returns an error value:
+
+.. code-block:: c
+
+   return log_ret(uclass_first_device_err(UCLASS_MMC, &dev));
+
+This will write a log record when an error code is detected (a value < 0). This
+can make it easier to trace errors that are generated deep in the call stack.
+
+The log_msg_ret() variant will print a short string if CONFIG_LOG_ERROR_RETURN
+is enabled. So long as the string is unique within the function you can normally
+determine exactly which call failed:
+
+.. code-block:: c
+
+   ret = gpio_request_by_name(dev, "cd-gpios", 0, &desc, GPIOD_IS_IN);
+   if (ret)
+      return log_msg_ret("gpio", ret);
+
+Some functions return 0 for success and any other value is an error. For these,
+log_retz() and log_msg_retz() are available.
 
 Convenience functions
----------------------
+~~~~~~~~~~~~~~~~~~~~~
 
 A number of convenience functions are available to shorten the code needed
 for logging:
@@ -111,37 +155,13 @@ LOG_CATEGORY, which you can only define once per file, above all #includes, e.g.
 
 	#define LOG_CATEGORY LOGC_ALLOC
 
+or
+
+.. code-block:: c
+
+	#define LOG_CATEGORY UCLASS_SPI
+
 Remember that all uclasses IDs are log categories too.
-
-
-Log command
------------
-
-The 'log' command provides access to several features:
-
-* level - access the default log level
-* format - access the console log format
-* rec - output a log record
-* test - run tests
-
-Type 'help log' for details.
-
-
-Using DEBUG
------------
-
-U-Boot has traditionally used a #define called DEBUG to enable debugging on a
-file-by-file basis. The debug() macro compiles to a printf() statement if
-DEBUG is enabled, and an empty statement if not.
-
-With logging enabled, debug() statements are interpreted as logging output
-with a level of LOGL_DEBUG and a category of LOGC_NONE.
-
-The logging facilities are intended to replace DEBUG, but if DEBUG is defined
-at the top of a file, then it takes precedence. This means that debug()
-statements will result in output to the console and this output will not be
-logged.
-
 
 Logging destinations
 --------------------
@@ -156,9 +176,40 @@ enabled or disabled independently:
 The syslog driver sends the value of environmental variable 'log_hostname' as
 HOSTNAME if available.
 
+Filters
+-------
+
+Filters are attached to log drivers to control what those drivers emit. FIlters
+can either allow or deny a log message when they match it. Only records which
+are allowed by a filter make it to the driver.
+
+Filters can be based on several criteria:
+
+* minimum or maximum log level
+* in a set of categories
+* in a set of files
+
+If no filters are attached to a driver then a default filter is used, which
+limits output to records with a level less than CONFIG_MAX_LOG_LEVEL.
+
+Log command
+-----------
+
+The 'log' command provides access to several features:
+
+* level - list log levels or set the default log level
+* categories - list log categories
+* drivers - list log drivers
+* filter-list - list filters
+* filter-add - add a new filter
+* filter-remove - remove filters
+* format - access the console log format
+* rec - output a log record
+
+Type 'help log' for details.
 
 Log format
-----------
+~~~~~~~~~~
 
 You can control the log format using the 'log format' command. The basic
 format is::
@@ -166,50 +217,43 @@ format is::
    LEVEL.category,file.c:123-func() message
 
 In the above, file.c:123 is the filename where the log record was generated and
-func() is the function name. By default ('log format default') only the
-function name and message are displayed on the console. You can control which
-fields are present, but not the field order.
+func() is the function name. By default ('log format default') only the message
+is displayed on the console. You can control which fields are present, but not
+the field order.
 
+Adding Filters
+~~~~~~~~~~~~~~
 
-Filters
--------
+To add new filters at runtime, use the 'log filter-add' command. For example, to
+suppress messages from the SPI and MMC subsystems, run::
 
-Filters are attached to log drivers to control what those drivers emit. Only
-records that pass through the filter make it to the driver.
+    log filter-add -D -c spi -c mmc
 
-Filters can be based on several criteria:
+You will also need to add another filter to allow other messages (because the
+default filter no longer applies)::
 
-* maximum log level
-* in a set of categories
-* in a set of files
+    log filter-add -A -l info
 
-If no filters are attached to a driver then a default filter is used, which
-limits output to records with a level less than CONFIG_MAX_LOG_LEVEL.
+Log levels may be either symbolic names (like above) or numbers. For example, to
+disable all debug and above (log level 7) messages from ``drivers/core/lists.c``
+and ``drivers/core/ofnode.c``, run::
 
+    log filter-add -D -f drivers/core/lists.c,drivers/core/ofnode.c -L 7
 
-Logging statements
-------------------
+To view active filters, use the 'log filter-list' command. Some example output
+is::
 
-The main logging function is:
+    => log filter-list
+    num policy level            categories files
+      2   deny >= DEBUG                    drivers/core/lists.c,drivers/core/ofnode.c
+      0   deny <= IO                   spi
+                                       mmc
+      1  allow <= INFO
 
-.. code-block:: c
-
-   log(category, level, format_string, ...)
-
-Also debug() and error() will generate log records  - these use LOG_CATEGORY
-as the category, so you should #define this right at the top of the source
-file to ensure the category is correct.
-
-You can also define CONFIG_LOG_ERROR_RETURN to enable the log_ret() macro. This
-can be used whenever your function returns an error value:
-
-.. code-block:: c
-
-   return log_ret(uclass_first_device(UCLASS_MMC, &dev));
-
-This will write a log record when an error code is detected (a value < 0). This
-can make it easier to trace errors that are generated deep in the call stack.
-
+Note that filters are processed in-order from top to bottom, not in the order of
+their filter number. Filters are added to the top of the list if they deny when
+they match, and to the bottom if they allow when they match. For more
+information, consult the usage of the 'log' command, by running 'help log'.
 
 Code size
 ---------
@@ -226,13 +270,12 @@ The last option turns every debug() statement into a logging call, which
 bloats the code hugely. The advantage is that it is then possible to enable
 all logging within U-Boot.
 
-
 To Do
 -----
 
 There are lots of useful additions that could be made. None of the below is
-implemented! If you do one, please add a test in test/py/tests/test_log.py
-
+implemented! If you do one, please add a test in test/log/log_test.c
+log filter-add -D -f drivers/core/lists.c,drivers/core/ofnode.c -l 6
 Convenience functions to support setting the category:
 
 * log_arch(level, format_string, ...) - category LOGC_ARCH
@@ -247,30 +290,18 @@ More logging destinations:
 
 Convert debug() statements in the code to log() statements
 
-Support making printf() emit log statements at L_INFO level
-
 Convert error() statements in the code to log() statements
 
 Figure out what to do with BUG(), BUG_ON() and warn_non_spl()
-
-Figure out what to do with assert()
 
 Add a way to browse log records
 
 Add a way to record log records for browsing using an external tool
 
-Add commands to add and remove filters
-
 Add commands to add and remove log devices
 
 Allow sharing of printf format strings in log records to reduce storage size
 for large numbers of log records
-
-Add a command-line option to sandbox to set the default logging level
-
-Convert core driver model code to use logging
-
-Convert uclasses to use logging with the correct category
 
 Consider making log() calls emit an automatic newline, perhaps with a logn()
 function to avoid that
@@ -282,9 +313,4 @@ number dropped due to them being generated before the log system was ready.
 
 Add a printf() format string pragma so that log statements are checked properly
 
-Enhance the log console driver to show level / category / file / line
-information
-
-Add a command to add new log records and delete existing records.
-
-Provide additional log() functions - e.g. logc() to specify the category
+Add a command to delete existing log records.

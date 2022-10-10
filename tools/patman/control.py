@@ -18,9 +18,9 @@ from patman import terminal
 
 def setup():
     """Do required setup before doing anything"""
-    gitutil.Setup()
+    gitutil.setup()
 
-def prepare_patches(col, branch, count, start, end, ignore_binary):
+def prepare_patches(col, branch, count, start, end, ignore_binary, signoff):
     """Figure out what patches to generate, then generate them
 
     The patch files are written to the current directory, e.g. 0001_xxx.patch
@@ -45,26 +45,26 @@ def prepare_patches(col, branch, count, start, end, ignore_binary):
     """
     if count == -1:
         # Work out how many patches to send if we can
-        count = (gitutil.CountCommitsToBranch(branch) - start)
+        count = (gitutil.count_commits_to_branch(branch) - start)
 
     if not count:
         str = 'No commits found to process - please use -c flag, or run:\n' \
               '  git branch --set-upstream-to remote/branch'
-        sys.exit(col.Color(col.RED, str))
+        sys.exit(col.build(col.RED, str))
 
     # Read the metadata from the commits
     to_do = count - end
-    series = patchstream.GetMetaData(branch, start, to_do)
-    cover_fname, patch_files = gitutil.CreatePatches(
-        branch, start, to_do, ignore_binary, series)
+    series = patchstream.get_metadata(branch, start, to_do)
+    cover_fname, patch_files = gitutil.create_patches(
+        branch, start, to_do, ignore_binary, series, signoff)
 
     # Fix up the patch files to our liking, and insert the cover letter
-    patchstream.FixPatches(series, patch_files)
+    patchstream.fix_patches(series, patch_files)
     if cover_fname and series.get('cover'):
-        patchstream.InsertCoverLetter(cover_fname, series, to_do)
+        patchstream.insert_cover_letter(cover_fname, series, to_do)
     return series, cover_fname, patch_files
 
-def check_patches(series, patch_files, run_checkpatch, verbose):
+def check_patches(series, patch_files, run_checkpatch, verbose, use_tree):
     """Run some checks on a set of patches
 
     This santiy-checks the patman tags like Series-version and runs the patches
@@ -77,6 +77,7 @@ def check_patches(series, patch_files, run_checkpatch, verbose):
         run_checkpatch (bool): True to run checkpatch.pl
         verbose (bool): True to print out every line of the checkpatch output as
             it is parsed
+        use_tree (bool): If False we'll pass '--no-tree' to checkpatch.
 
     Returns:
         bool: True if the patches had no errors, False if they did
@@ -86,7 +87,7 @@ def check_patches(series, patch_files, run_checkpatch, verbose):
 
     # Check the patches, and run them through 'git am' just to be sure
     if run_checkpatch:
-        ok = checkpatch.CheckPatches(verbose, patch_files)
+        ok = checkpatch.check_patches(verbose, patch_files, use_tree)
     else:
         ok = True
     return ok
@@ -138,18 +139,18 @@ def email_patches(col, series, cover_fname, patch_files, process_tags, its_a_go,
     # Email the patches out (giving the user time to check / cancel)
     cmd = ''
     if its_a_go:
-        cmd = gitutil.EmailPatches(
+        cmd = gitutil.email_patches(
             series, cover_fname, patch_files, dry_run, not ignore_bad_tags,
             cc_file, in_reply_to=in_reply_to, thread=thread,
             smtp_server=smtp_server)
     else:
-        print(col.Color(col.RED, "Not sending emails due to errors/warnings"))
+        print(col.build(col.RED, "Not sending emails due to errors/warnings"))
 
     # For a dry run, just show our actions as a sanity check
     if dry_run:
         series.ShowActions(patch_files, cmd, process_tags)
         if not its_a_go:
-            print(col.Color(col.RED, "Email would not be sent"))
+            print(col.build(col.RED, "Email would not be sent"))
 
     os.remove(cc_file)
 
@@ -163,16 +164,75 @@ def send(args):
     col = terminal.Color()
     series, cover_fname, patch_files = prepare_patches(
         col, args.branch, args.count, args.start, args.end,
-        args.ignore_binary)
+        args.ignore_binary, args.add_signoff)
     ok = check_patches(series, patch_files, args.check_patch,
-                       args.verbose)
+                       args.verbose, args.check_patch_use_tree)
 
-    ok = ok and gitutil.CheckSuppressCCConfig()
+    ok = ok and gitutil.check_suppress_cc_config()
 
     its_a_go = ok or args.ignore_errors
-    if its_a_go:
-        email_patches(
-            col, series, cover_fname, patch_files, args.process_tags,
-            its_a_go, args.ignore_bad_tags, args.add_maintainers,
-            args.limit, args.dry_run, args.in_reply_to, args.thread,
-            args.smtp_server)
+    email_patches(
+        col, series, cover_fname, patch_files, args.process_tags,
+        its_a_go, args.ignore_bad_tags, args.add_maintainers,
+        args.limit, args.dry_run, args.in_reply_to, args.thread,
+        args.smtp_server)
+
+def patchwork_status(branch, count, start, end, dest_branch, force,
+                     show_comments, url):
+    """Check the status of patches in patchwork
+
+    This finds the series in patchwork using the Series-link tag, checks for new
+    comments and review tags, displays then and creates a new branch with the
+    review tags.
+
+    Args:
+        branch (str): Branch to create patches from (None = current)
+        count (int): Number of patches to produce, or -1 to produce patches for
+            the current branch back to the upstream commit
+        start (int): Start partch to use (0=first / top of branch)
+        end (int): End patch to use (0=last one in series, 1=one before that,
+            etc.)
+        dest_branch (str): Name of new branch to create with the updated tags
+            (None to not create a branch)
+        force (bool): With dest_branch, force overwriting an existing branch
+        show_comments (bool): True to display snippets from the comments
+            provided by reviewers
+        url (str): URL of patchwork server, e.g. 'https://patchwork.ozlabs.org'.
+            This is ignored if the series provides a Series-patchwork-url tag.
+
+    Raises:
+        ValueError: if the branch has no Series-link value
+    """
+    if count == -1:
+        # Work out how many patches to send if we can
+        count = (gitutil.count_commits_to_branch(branch) - start)
+
+    series = patchstream.get_metadata(branch, start, count - end)
+    warnings = 0
+    for cmt in series.commits:
+        if cmt.warn:
+            print('%d warnings for %s:' % (len(cmt.warn), cmt.hash))
+            for warn in cmt.warn:
+                print('\t', warn)
+                warnings += 1
+            print
+    if warnings:
+        raise ValueError('Please fix warnings before running status')
+    links = series.get('links')
+    if not links:
+        raise ValueError("Branch has no Series-links value")
+
+    # Find the link without a version number (we don't support versions yet)
+    found = [link for link in links.split() if not ':' in link]
+    if not found:
+        raise ValueError('Series-links has no current version (without :)')
+
+    # Allow the series to override the URL
+    if 'patchwork_url' in series:
+        url = series.patchwork_url
+
+    # Import this here to avoid failing on other commands if the dependencies
+    # are not present
+    from patman import status
+    status.check_patchwork_status(series, found[0], branch, dest_branch, force,
+                                  show_comments, url)

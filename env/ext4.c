@@ -31,6 +31,8 @@
 #include <errno.h>
 #include <ext4fs.h>
 #include <mmc.h>
+#include <scsi.h>
+#include <asm/global_data.h>
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -41,7 +43,21 @@ __weak const char *env_ext4_get_intf(void)
 
 __weak const char *env_ext4_get_dev_part(void)
 {
+#ifdef CONFIG_MMC
+	static char *part_str;
+
+	if (!part_str) {
+		part_str = CONFIG_ENV_EXT4_DEVICE_AND_PART;
+		if (!strcmp(CONFIG_ENV_EXT4_INTERFACE, "mmc") && part_str[0] == ':') {
+			part_str = "0" CONFIG_ENV_EXT4_DEVICE_AND_PART;
+			part_str[0] += mmc_get_env_dev();
+		}
+	}
+
+	return part_str;
+#else
 	return (const char *)CONFIG_ENV_EXT4_DEVICE_AND_PART;
+#endif
 }
 
 static int env_ext4_save_buffer(env_t *env_new)
@@ -131,6 +147,10 @@ static int env_ext4_load(void)
 	if (!strcmp(ifname, "mmc"))
 		mmc_initialize(NULL);
 #endif
+#if defined(CONFIG_AHCI) || defined(CONFIG_SCSI)
+	if (!strcmp(ifname, "scsi"))
+		scsi_scan(true);
+#endif
 
 	part = blk_get_device_part_str(ifname, dev_and_part,
 				       &dev_desc, &info, 1);
@@ -173,6 +193,5 @@ U_BOOT_ENV_LOCATION(ext4) = {
 	ENV_NAME("EXT4")
 	.load		= env_ext4_load,
 	.save		= ENV_SAVE_PTR(env_ext4_save),
-	.erase		= CONFIG_IS_ENABLED(CMD_ERASEENV) ? env_ext4_erase :
-							    NULL,
+	.erase		= ENV_ERASE_PTR(env_ext4_erase),
 };

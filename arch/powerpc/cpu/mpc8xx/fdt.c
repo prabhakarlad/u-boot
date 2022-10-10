@@ -7,6 +7,7 @@
 
 #include <common.h>
 #include <time.h>
+#include <asm/global_data.h>
 #include <linux/libfdt.h>
 #include <fdt_support.h>
 
@@ -25,5 +26,5 @@ void ft_cpu_setup(void *blob, struct bd_info *bd)
 	do_fixup_by_compat_u32(blob, "fsl,cpm-brg", "clock-frequency",
 			       gd->arch.brg_clk, 1);
 
-	fdt_fixup_memory(blob, (u64)bd->bi_memstart, (u64)bd->bi_memsize);
+	fdt_fixup_memory(blob, (u64)gd->ram_base, (u64)gd->ram_size);
 }

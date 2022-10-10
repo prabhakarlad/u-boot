@@ -25,7 +25,7 @@ struct max98357a_priv {
 	struct gpio_desc sdmode_gpio;
 };
 
-static int max98357a_ofdata_to_platdata(struct udevice *dev)
+static int max98357a_of_to_plat(struct udevice *dev)
 {
 	struct max98357a_priv *priv = dev_get_priv(dev);
 	int ret;
@@ -38,6 +38,7 @@ static int max98357a_ofdata_to_platdata(struct udevice *dev)
 	return 0;
 }
 
+__maybe_unused
 static int max98357a_acpi_fill_ssdt(const struct udevice *dev,
 				    struct acpi_ctx *ctx)
 {
@@ -69,7 +70,7 @@ static int max98357a_acpi_fill_ssdt(const struct udevice *dev,
 	acpigen_write_name(ctx, "_CRS");
 	acpigen_write_resourcetemplate_header(ctx);
 	ret = acpi_device_write_gpio_desc(ctx, &priv->sdmode_gpio);
-	if (ret)
+	if (ret < 0)
 		return log_msg_ret("gpio", ret);
 	acpigen_write_resourcetemplate_footer(ctx);
 
@@ -81,7 +82,7 @@ static int max98357a_acpi_fill_ssdt(const struct udevice *dev,
 	dp = acpi_dp_new_table("_DSD");
 	acpi_dp_add_gpio(dp, "sdmode-gpio", path, 0, 0,
 			 priv->sdmode_gpio.flags & GPIOD_ACTIVE_LOW ?
-			 ACPI_IRQ_ACTIVE_LOW : ACPI_IRQ_ACTIVE_HIGH);
+			 ACPI_GPIO_ACTIVE_LOW : ACPI_GPIO_ACTIVE_HIGH);
 	acpi_dp_add_integer(dp, "sdmode-delay",
 			    dev_read_u32_default(dev, "sdmode-delay", 0));
 	acpi_dp_write(ctx, dp);
@@ -137,9 +138,11 @@ static int max98357a_acpi_setup_nhlt(const struct udevice *dev,
 #endif
 
 struct acpi_ops max98357a_acpi_ops = {
+#ifdef CONFIG_ACPIGEN
 	.fill_ssdt	= max98357a_acpi_fill_ssdt,
 #ifdef CONFIG_X86
 	.setup_nhlt	= max98357a_acpi_setup_nhlt,
+#endif
 #endif
 };
 
@@ -155,7 +158,7 @@ U_BOOT_DRIVER(max98357a) = {
 	.name		= "max98357a",
 	.id		= UCLASS_AUDIO_CODEC,
 	.of_match	= max98357a_ids,
-	.ofdata_to_platdata	= max98357a_ofdata_to_platdata,
+	.of_to_plat	= max98357a_of_to_plat,
 	.ops		= &max98357a_ops,
 	ACPI_OPS_PTR(&max98357a_acpi_ops)
 };

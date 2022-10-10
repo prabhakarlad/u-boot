@@ -37,7 +37,7 @@ static int list_buttons(void)
 	for (uclass_find_first_device(UCLASS_BUTTON, &dev);
 	     dev;
 	     uclass_find_next_device(&dev)) {
-		struct button_uc_plat *plat = dev_get_uclass_platdata(dev);
+		struct button_uc_plat *plat = dev_get_uclass_plat(dev);
 
 		if (!plat->label)
 			continue;
@@ -75,11 +75,11 @@ int do_button(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
 
 	ret = show_button_state(dev);
 
-	return 0;
+	return !ret;
 }
 
 U_BOOT_CMD(
-	button, 4, 1, do_button,
+	button, 2, 1, do_button,
 	"manage buttons",
 	"<button_label> \tGet button state\n"
 	"button list\t\tShow a list of buttons"

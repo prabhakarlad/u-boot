@@ -13,6 +13,7 @@
 #include <efi_loader.h>
 #include <hang.h>
 #include <irq_func.h>
+#include <asm/global_data.h>
 #include <asm/ptrace.h>
 #include <asm/system.h>
 #include <asm/encoding.h>
@@ -27,7 +28,7 @@ static void show_efi_loaded_images(uintptr_t epc)
 static void show_regs(struct pt_regs *regs)
 {
 #ifdef CONFIG_SHOW_REGS
-	printf("SP:  " REG_FMT " GP:  " REG_FMT " TP:  " REG_FMT "\n",
+	printf("\nSP:  " REG_FMT " GP:  " REG_FMT " TP:  " REG_FMT "\n",
 	       regs->sp, regs->gp, regs->tp);
 	printf("T0:  " REG_FMT " T1:  " REG_FMT " T2:  " REG_FMT "\n",
 	       regs->t0, regs->t1, regs->t2);
@@ -45,9 +46,41 @@ static void show_regs(struct pt_regs *regs)
 	       regs->s7, regs->s8, regs->s9);
 	printf("S10: " REG_FMT " S11: " REG_FMT " T3:  " REG_FMT "\n",
 	       regs->s10, regs->s11, regs->t3);
-	printf("T4:  " REG_FMT " T5:  " REG_FMT " T6:  " REG_FMT "\n\n",
+	printf("T4:  " REG_FMT " T5:  " REG_FMT " T6:  " REG_FMT "\n",
 	       regs->t4, regs->t5, regs->t6);
 #endif
+}
+
+/**
+ * instr_len() - get instruction length
+ *
+ * @i:		low 16 bits of the instruction
+ * Return:	number of u16 in instruction
+ */
+static int instr_len(u16 i)
+{
+	if ((i & 0x03) != 0x03)
+		return 1;
+	/* Instructions with more than 32 bits are not yet specified */
+	return 2;
+}
+
+/**
+ * show_code() - display code leading to exception
+ *
+ * @epc:	program counter
+ */
+static void show_code(ulong epc)
+{
+	u16 *pos = (u16 *)(epc & ~1UL);
+	int i, len = instr_len(*pos);
+
+	printf("\nCode: ");
+	for (i = -8; i; ++i)
+		printf("%04x ", pos[i]);
+	printf("(");
+	for (i = 0; i < len; ++i)
+		printf("%04x%s", pos[i], i + 1 == len ? ")\n" : " ");
 }
 
 static void _exit_trap(ulong code, ulong epc, ulong tval, struct pt_regs *regs)
@@ -78,13 +111,15 @@ static void _exit_trap(ulong code, ulong epc, ulong tval, struct pt_regs *regs)
 
 	printf("EPC: " REG_FMT " RA: " REG_FMT " TVAL: " REG_FMT "\n",
 	       epc, regs->ra, tval);
-	if (gd->flags & GD_FLG_RELOC)
-		printf("EPC: " REG_FMT " RA: " REG_FMT " reloc adjusted\n\n",
+	/* Print relocation adjustments, but only if gd is initialized */
+	if (gd && gd->flags & GD_FLG_RELOC)
+		printf("EPC: " REG_FMT " RA: " REG_FMT " reloc adjusted\n",
 		       epc - gd->reloc_off, regs->ra - gd->reloc_off);
 
 	show_regs(regs);
+	show_code(epc);
 	show_efi_loaded_images(epc);
-	hang();
+	panic("\n");
 }
 
 int interrupt_init(void)

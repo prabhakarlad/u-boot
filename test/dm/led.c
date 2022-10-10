@@ -21,8 +21,7 @@ static int dm_test_led_base(struct unit_test_state *uts)
 	ut_assertok(uclass_get_device(UCLASS_LED, 1, &dev));
 	ut_assertok(uclass_get_device(UCLASS_LED, 2, &dev));
 	ut_assertok(uclass_get_device(UCLASS_LED, 3, &dev));
-	ut_assertok(uclass_get_device(UCLASS_LED, 4, &dev));
-	ut_asserteq(-ENODEV, uclass_get_device(UCLASS_LED, 5, &dev));
+	ut_asserteq(-ENODEV, uclass_get_device(UCLASS_LED, 4, &dev));
 
 	return 0;
 }
@@ -33,14 +32,12 @@ static int dm_test_led_default_state(struct unit_test_state *uts)
 {
 	struct udevice *dev;
 
-	/* configure the default state (auto-probe) */
-	led_default_state();
-
 	/* Check that we handle the default-state property correctly. */
 	ut_assertok(led_get_by_label("sandbox:default_on", &dev));
 	ut_asserteq(LEDST_ON, led_get_state(dev));
 
-	ut_assertok(led_get_by_label("sandbox:default_off", &dev));
+	/* Also tests default label behaviour */
+	ut_assertok(led_get_by_label("default_off", &dev));
 	ut_asserteq(LEDST_OFF, led_get_state(dev));
 
 	return 0;
@@ -54,10 +51,10 @@ static int dm_test_led_gpio(struct unit_test_state *uts)
 	struct udevice *dev, *gpio;
 
 	/*
-	 * Check that we can manipulate an LED. LED 1 is connected to GPIO
+	 * Check that we can manipulate an LED. LED 0 is connected to GPIO
 	 * bank gpio_a, offset 1.
 	 */
-	ut_assertok(uclass_get_device(UCLASS_LED, 1, &dev));
+	ut_assertok(uclass_get_device(UCLASS_LED, 0, &dev));
 	ut_assertok(uclass_get_device(UCLASS_GPIO, 1, &gpio));
 	ut_asserteq(0, sandbox_gpio_get_value(gpio, offset));
 	ut_assertok(led_set_state(dev, LEDST_ON));
@@ -79,10 +76,10 @@ static int dm_test_led_toggle(struct unit_test_state *uts)
 	struct udevice *dev, *gpio;
 
 	/*
-	 * Check that we can manipulate an LED. LED 1 is connected to GPIO
+	 * Check that we can manipulate an LED. LED 0 is connected to GPIO
 	 * bank gpio_a, offset 1.
 	 */
-	ut_assertok(uclass_get_device(UCLASS_LED, 1, &dev));
+	ut_assertok(uclass_get_device(UCLASS_LED, 0, &dev));
 	ut_assertok(uclass_get_device(UCLASS_GPIO, 1, &gpio));
 	ut_asserteq(0, sandbox_gpio_get_value(gpio, offset));
 	ut_assertok(led_set_state(dev, LEDST_TOGGLE));
@@ -104,12 +101,12 @@ static int dm_test_led_label(struct unit_test_state *uts)
 
 	ut_assertok(led_get_by_label("sandbox:red", &dev));
 	ut_asserteq(1, device_active(dev));
-	ut_assertok(uclass_get_device(UCLASS_LED, 1, &cmp));
+	ut_assertok(uclass_get_device(UCLASS_LED, 0, &cmp));
 	ut_asserteq_ptr(dev, cmp);
 
 	ut_assertok(led_get_by_label("sandbox:green", &dev));
 	ut_asserteq(1, device_active(dev));
-	ut_assertok(uclass_get_device(UCLASS_LED, 2, &cmp));
+	ut_assertok(uclass_get_device(UCLASS_LED, 1, &cmp));
 	ut_asserteq_ptr(dev, cmp);
 
 	ut_asserteq(-ENODEV, led_get_by_label("sandbox:blue", &dev));
@@ -129,7 +126,7 @@ static int dm_test_led_blink(struct unit_test_state *uts)
 	 * Check that we get an error when trying to blink an LED, since it is
 	 * not supported by the GPIO LED driver.
 	 */
-	ut_assertok(uclass_get_device(UCLASS_LED, 1, &dev));
+	ut_assertok(uclass_get_device(UCLASS_LED, 0, &dev));
 	ut_assertok(uclass_get_device(UCLASS_GPIO, 1, &gpio));
 	ut_asserteq(0, sandbox_gpio_get_value(gpio, offset));
 	ut_asserteq(-ENOSYS, led_set_state(dev, LEDST_BLINK));

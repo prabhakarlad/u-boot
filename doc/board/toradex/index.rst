@@ -6,7 +6,8 @@ Toradex
 .. toctree::
    :maxdepth: 2
 
-   apalix-imx8
+   apalis-imx8
    colibri_imx7
    colibri-imx8x
    verdin-imx8mm
+   verdin-imx8mp

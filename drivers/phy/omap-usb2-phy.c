@@ -7,11 +7,13 @@
  */
 
 #include <common.h>
+#include <asm/global_data.h>
 #include <asm/io.h>
 #include <dm.h>
 #include <errno.h>
 #include <generic-phy.h>
 #include <regmap.h>
+#include <soc.h>
 #include <syscon.h>
 #include <linux/bitops.h>
 #include <linux/err.h>
@@ -196,6 +198,11 @@ struct phy_ops omap_usb2_phy_ops = {
 	.exit = omap_usb2_phy_exit,
 };
 
+static const struct soc_attr am65x_sr10_soc_devices[] = {
+	{ .family = "AM65X", .revision = "SR1.0" },
+	{ /* sentinel */ }
+};
+
 int omap_usb2_phy_probe(struct udevice *dev)
 {
 	int rc;
@@ -222,10 +229,9 @@ int omap_usb2_phy_probe(struct udevice *dev)
 	 * Disabling the USB2_PHY Charger Detect function will put D+
 	 * into the normal state.
 	 *
-	 * Using property "ti,dis-chg-det-quirk" in the DT usb2-phy node
-	 * to enable this workaround for AM654x PG1.0.
+	 * Enable this workaround for AM654x PG1.0.
 	 */
-	if (dev_read_bool(dev, "ti,dis-chg-det-quirk"))
+	if (soc_device_match(am65x_sr10_soc_devices))
 		priv->flags |= OMAP_USB2_DISABLE_CHG_DET;
 
 	regmap = syscon_regmap_lookup_by_phandle(dev, "syscon-phy-power");
@@ -256,5 +262,5 @@ U_BOOT_DRIVER(omap_usb2_phy) = {
 	.of_match = omap_usb2_id_table,
 	.probe = omap_usb2_phy_probe,
 	.ops = &omap_usb2_phy_ops,
-	.priv_auto_alloc_size = sizeof(struct omap_usb2_phy),
+	.priv_auto	= sizeof(struct omap_usb2_phy),
 };

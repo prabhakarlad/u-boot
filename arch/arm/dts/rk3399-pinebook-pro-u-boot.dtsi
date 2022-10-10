@@ -7,10 +7,6 @@
 #include "rk3399-sdram-lpddr4-100.dtsi"
 
 / {
-	aliases {
-		spi0 = &spi1;
-	};
-
 	chosen {
 		u-boot,spl-boot-order = "same-as-spl", &sdhci, &spiflash, &sdmmc;
 	};
@@ -20,16 +16,16 @@
 	};
 };
 
+&edp {
+	rockchip,panel = <&edp_panel>;
+};
+
 &i2c0 {
 	u-boot,dm-pre-reloc;
 };
 
 &rk808 {
 	u-boot,dm-pre-reloc;
-};
-
-&rng {
-	status = "okay";
 };
 
 &sdhci {

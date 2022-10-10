@@ -27,7 +27,7 @@ static void read_mtrrs(void *arg)
 	mtrr_read_all(info);
 }
 
-static int do_mtrr_list(int cpu_select)
+static int do_mtrr_list(int reg_count, int cpu_select)
 {
 	struct mtrr_info info;
 	int ret;
@@ -39,7 +39,7 @@ static int do_mtrr_list(int cpu_select)
 	ret = mp_run_on_cpus(cpu_select, read_mtrrs, &info);
 	if (ret)
 		return log_msg_ret("run", ret);
-	for (i = 0; i < MTRR_COUNT; i++) {
+	for (i = 0; i < reg_count; i++) {
 		const char *type = "Invalid";
 		uint64_t base, mask, size;
 		bool valid;
@@ -78,8 +78,8 @@ static int do_mtrr_set(int cpu_select, uint reg, int argc, char *const argv[])
 		printf("Invalid type name %s\n", typename);
 		return CMD_RET_USAGE;
 	}
-	start = simple_strtoul(argv[1], NULL, 16);
-	size = simple_strtoul(argv[2], NULL, 16);
+	start = hextoul(argv[1], NULL);
+	size = hextoul(argv[2], NULL);
 
 	base = start | type;
 	valid = native_read_msr(MTRR_PHYS_MASK_MSR(reg)) & MTRR_PHYS_MASK_VALID;
@@ -98,6 +98,7 @@ static int do_mtrr_set(int cpu_select, uint reg, int argc, char *const argv[])
 static int do_mtrr(struct cmd_tbl *cmdtp, int flag, int argc,
 		   char *const argv[])
 {
+	int reg_count = mtrr_get_var_count();
 	int cmd;
 	int cpu_select;
 	uint reg;
@@ -125,8 +126,8 @@ static int do_mtrr(struct cmd_tbl *cmdtp, int flag, int argc,
 	if (cmd != 'l') {
 		if (argc < 2)
 			return CMD_RET_USAGE;
-		reg = simple_strtoul(argv[1], NULL, 16);
-		if (reg >= MTRR_COUNT) {
+		reg = hextoul(argv[1], NULL);
+		if (reg >= reg_count) {
 			printf("Invalid register number\n");
 			return CMD_RET_USAGE;
 		}
@@ -145,7 +146,7 @@ static int do_mtrr(struct cmd_tbl *cmdtp, int flag, int argc,
 			if (!first)
 				printf("\n");
 			printf("CPU %d:\n", i);
-			ret = do_mtrr_list(i);
+			ret = do_mtrr_list(reg_count, i);
 			if (ret) {
 				printf("Failed to read CPU %d (err=%d)\n", i,
 				       ret);

@@ -27,8 +27,6 @@
 #include <linux/types.h>
 
 struct bd_info {
-	unsigned long	bi_memstart;	/* start of DRAM memory */
-	phys_size_t	bi_memsize;	/* size	 of DRAM memory in bytes */
 	unsigned long	bi_flashstart;	/* start of FLASH memory */
 	unsigned long	bi_flashsize;	/* size	 of FLASH memory */
 	unsigned long	bi_flashoffset; /* reserved area for startup monitor */
@@ -50,16 +48,9 @@ struct bd_info {
 #endif
 	unsigned long	bi_bootflags;	/* boot / reboot flag (Unused) */
 	unsigned long	bi_ip_addr;	/* IP Address */
-	unsigned char	bi_enetaddr[6];	/* OLD: see README.enetaddr */
 	unsigned short	bi_ethspeed;	/* Ethernet speed in Mbps */
 	unsigned long	bi_intfreq;	/* Internal Freq, in MHz */
 	unsigned long	bi_busfreq;	/* Bus Freq, in MHz */
-#if defined(CONFIG_CPM2)
-	unsigned long	bi_cpmfreq;	/* CPM_CLK Freq, in MHz */
-	unsigned long	bi_brgfreq;	/* BRG_CLK Freq, in MHz */
-	unsigned long	bi_sccfreq;	/* SCC_CLK Freq, in MHz */
-	unsigned long	bi_vco;		/* VCO Out from PLL, in MHz */
-#endif
 #if defined(CONFIG_M68K)
 	unsigned long	bi_pcifreq;	/* PCI Bus Freq, in MHz */
 #endif
@@ -70,12 +61,10 @@ struct bd_info {
 #endif
 	ulong	        bi_arch_number;	/* unique id for this board */
 	ulong	        bi_boot_params;	/* where this board expects params */
-#ifdef CONFIG_NR_DRAM_BANKS
 	struct {			/* RAM configuration */
 		phys_addr_t start;
 		phys_size_t size;
 	} bi_dram[CONFIG_NR_DRAM_BANKS];
-#endif /* CONFIG_NR_DRAM_BANKS */
 };
 
 #endif /* __ASSEMBLY__ */

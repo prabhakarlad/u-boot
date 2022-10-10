@@ -18,6 +18,8 @@
  * src/arch/x86/lib/cpu.c
  */
 
+#define LOG_CATEGORY	UCLASS_CPU
+
 #include <common.h>
 #include <bootstage.h>
 #include <command.h>
@@ -35,6 +37,7 @@
 #include <asm/control_regs.h>
 #include <asm/coreboot_tables.h>
 #include <asm/cpu.h>
+#include <asm/global_data.h>
 #include <asm/lapic.h>
 #include <asm/microcode.h>
 #include <asm/mp.h>
@@ -175,10 +178,12 @@ int default_print_cpuinfo(void)
 	return 0;
 }
 
+#if CONFIG_IS_ENABLED(SHOW_BOOT_PROGRESS)
 void show_boot_progress(int val)
 {
 	outb(val, POST_PORT);
 }
+#endif
 
 #if !defined(CONFIG_SYS_COREBOOT) && !defined(CONFIG_EFI_STUB)
 /*
@@ -189,9 +194,18 @@ __weak void board_final_init(void)
 {
 }
 
+/*
+ * Implement a weak default function for boards that need to do some final
+ * processing before booting the OS.
+ */
+__weak void board_final_cleanup(void)
+{
+}
+
 int last_stage_init(void)
 {
 	struct acpi_fadt __maybe_unused *fadt;
+	int ret;
 
 	board_final_init();
 
@@ -202,7 +216,11 @@ int last_stage_init(void)
 			acpi_resume(fadt);
 	}
 
-	write_tables();
+	ret = write_tables();
+	if (ret) {
+		log_err("Failed to write tables\n");
+		return log_msg_ret("table", ret);
+	}
 
 	if (IS_ENABLED(CONFIG_GENERATE_ACPI_TABLE)) {
 		fadt = acpi_find_fadt();
@@ -217,6 +235,13 @@ int last_stage_init(void)
 			enter_acpi_mode(fadt->pm1a_cnt_blk);
 		}
 	}
+
+	/*
+	 * TODO(sjg@chromium.org): Move this to bootm_announce_and_cleanup()
+	 * once APL FSP-S at 0x200000 does not overlap with the bzimage at
+	 * 0x100000.
+	 */
+	board_final_cleanup();
 
 	return 0;
 }

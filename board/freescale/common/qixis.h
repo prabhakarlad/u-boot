@@ -141,4 +141,50 @@ void qixis_write_i2c(unsigned int reg, u8 value);
 
 #define QIXIS_EVDD_BY_SDHC_VS	0x0c
 
+#if defined(CONFIG_TARGET_LX2160AQDS) || defined(CONFIG_TARGET_LX2162AQDS) || \
+defined(CONFIG_TARGET_LX2160ARDB)
+#define QIXIS_XMAP_MASK			0x07
+#define QIXIS_RST_CTL_RESET_EN		0x30
+#define QIXIS_LBMAP_DFLTBANK		0x00
+#define QIXIS_LBMAP_ALTBANK		0x20
+#define QIXIS_LBMAP_QSPI		0x00
+#define QIXIS_RCW_SRC_QSPI		0xff
+#define QIXIS_RST_CTL_RESET		0x31
+#define QIXIS_RCFG_CTL_RECONFIG_IDLE	0x20
+#define QIXIS_RCFG_CTL_RECONFIG_START	0x21
+#define QIXIS_RCFG_CTL_WATCHDOG_ENBLE	0x08
+#define QIXIS_LBMAP_MASK		0x0f
+#define QIXIS_LBMAP_SD
+#define QIXIS_LBMAP_EMMC
+#define QIXIS_RCW_SRC_SD		0x08
+#define QIXIS_RCW_SRC_EMMC         0x09
+#define NON_EXTENDED_DUTCFG
+#endif
+
+#if defined(CONFIG_TARGET_LX2160AQDS) || defined(CONFIG_TARGET_LX2162AQDS)
+#define QIXIS_SDID_MASK			0x07
+#define QIXIS_ESDHC_NO_ADAPTER		0x7
+#endif
+
+/*
+ * implementation of CONFIG_ESDHC_DETECT_QUIRK Macro.
+ */
+static inline u8 qixis_esdhc_detect_quirk(void)
+{
+	/*
+	 * SDHC1 Card ID:
+	 * Specifies the type of card installed in the SDHC1 adapter slot.
+	 * 000= (reserved)
+	 * 001= eMMC V4.5 adapter is installed.
+	 * 010= SD/MMC 3.3V adapter is installed.
+	 * 011= eMMC V4.4 adapter is installed.
+	 * 100= eMMC V5.0 adapter is installed.
+	 * 101= MMC card/Legacy (3.3V) adapter is installed.
+	 * 110= SDCard V2/V3 adapter installed.
+	 * 111= no adapter is installed.
+	 */
+	return ((QIXIS_READ(sdhc1) & QIXIS_SDID_MASK) !=
+		 QIXIS_ESDHC_NO_ADAPTER);
+}
+
 #endif

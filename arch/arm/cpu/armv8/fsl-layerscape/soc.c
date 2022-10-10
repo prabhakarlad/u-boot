@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
  * Copyright 2014-2015 Freescale Semiconductor
- * Copyright 2019 NXP
+ * Copyright 2019-2021 NXP
  */
 
 #include <common.h>
@@ -33,36 +33,44 @@
 #include <fsl_validate.h>
 #endif
 #include <fsl_immap.h>
-#ifdef CONFIG_TFABOOT
-#include <env_internal.h>
-#endif
 #include <dm.h>
+#include <dm/device_compat.h>
 #include <linux/err.h>
-#if defined(CONFIG_TFABOOT) || defined(CONFIG_GIC_V3_ITS)
+#ifdef CONFIG_GIC_V3_ITS
 DECLARE_GLOBAL_DATA_PTR;
 #endif
 
 #ifdef CONFIG_GIC_V3_ITS
+#define PENDTABLE_MAX_SZ	ALIGN(BIT(ITS_MAX_LPI_NRBITS), SZ_64K)
+#define PROPTABLE_MAX_SZ	ALIGN(BIT(ITS_MAX_LPI_NRBITS) / 8, SZ_64K)
+#define GIC_LPI_SIZE		ALIGN(cpu_numcores() * PENDTABLE_MAX_SZ + \
+				PROPTABLE_MAX_SZ, SZ_1M)
+static int fdt_add_resv_mem_gic_rd_tables(void *blob, u64 base, size_t size)
+{
+	int err;
+	struct fdt_memory gic_rd_tables;
+
+	gic_rd_tables.start = base;
+	gic_rd_tables.end = base + size - 1;
+	err = fdtdec_add_reserved_memory(blob, "gic-rd-tables", &gic_rd_tables,
+					 NULL, 0, NULL, 0);
+	if (err < 0)
+		debug("%s: failed to add reserved memory: %d\n", __func__, err);
+
+	return err;
+}
+
 int ls_gic_rd_tables_init(void *blob)
 {
-	struct fdt_memory lpi_base;
-	fdt_addr_t addr;
-	fdt_size_t size;
-	int offset, ret;
+	u64 gic_lpi_base;
+	int ret;
 
-	offset = fdt_path_offset(gd->fdt_blob, "/syscon@0x80000000");
-	addr = fdtdec_get_addr_size_auto_noparent(gd->fdt_blob, offset, "reg",
-						  0, &size, false);
-
-	lpi_base.start = addr;
-	lpi_base.end = addr + size - 1;
-	ret = fdtdec_add_reserved_memory(blob, "lpi_rd_table", &lpi_base, NULL);
-	if (ret) {
-		debug("%s: failed to add reserved memory\n", __func__);
+	gic_lpi_base = ALIGN(gd->arch.resv_ram - GIC_LPI_SIZE, SZ_64K);
+	ret = fdt_add_resv_mem_gic_rd_tables(blob, gic_lpi_base, GIC_LPI_SIZE);
+	if (ret)
 		return ret;
-	}
 
-	ret = gic_lpi_tables_init();
+	ret = gic_lpi_tables_init(gic_lpi_base, cpu_numcores());
 	if (ret)
 		debug("%s: failed to init gic-lpi-tables\n", __func__);
 
@@ -185,7 +193,8 @@ static void erratum_a008997(void)
 	out_be16((phy) + SCFG_USB_PHY_RX_OVRD_IN_HI, USB_PHY_RX_EQ_VAL_4)
 
 #elif defined(CONFIG_ARCH_LS2080A) || defined(CONFIG_ARCH_LS1088A) || \
-	defined(CONFIG_ARCH_LS1028A) || defined(CONFIG_ARCH_LX2160A)
+	defined(CONFIG_ARCH_LS1028A) || defined(CONFIG_ARCH_LX2160A) || \
+	defined(CONFIG_ARCH_LX2162A)
 
 #define PROGRAM_USB_PHY_RX_OVRD_IN_HI(phy)	\
 	out_le16((phy) + DCSR_USB_PHY_RX_OVRD_IN_HI, USB_PHY_RX_EQ_VAL_1); \
@@ -197,6 +206,9 @@ static void erratum_a008997(void)
 
 static void erratum_a009007(void)
 {
+	if (!IS_ENABLED(CONFIG_SYS_FSL_ERRATUM_A009007))
+		return;
+
 #if defined(CONFIG_ARCH_LS1043A) || defined(CONFIG_ARCH_LS1046A) || \
 	defined(CONFIG_ARCH_LS1012A)
 	void __iomem *usb_phy = (void __iomem *)SCFG_USB_PHY1;
@@ -219,9 +231,9 @@ static void erratum_a009007(void)
 }
 
 #if defined(CONFIG_FSL_LSCH3)
-static void erratum_a050106(void)
+static void erratum_a050204(void)
 {
-#if defined(CONFIG_ARCH_LX2160A)
+#if defined(CONFIG_ARCH_LX2160A) || defined(CONFIG_ARCH_LX2162A)
 	void __iomem *dcsr = (void __iomem *)DCSR_BASE;
 
 	PROGRAM_USB_PHY_RX_OVRD_IN_HI(dcsr + DCSR_USB_PHY1);
@@ -278,7 +290,7 @@ static unsigned long get_internval_val_mhz(void)
 	ulong interval_mhz = get_bus_freq(0) / (1000 * 1000);
 
 	if (interval)
-		interval_mhz = simple_strtoul(interval, NULL, 10);
+		interval_mhz = dectoul(interval, NULL);
 
 	return interval_mhz;
 }
@@ -330,7 +342,7 @@ static void erratum_rcw_src(void)
 #ifdef CONFIG_SYS_FSL_ERRATUM_A009203
 static void erratum_a009203(void)
 {
-#ifdef CONFIG_SYS_I2C
+#if CONFIG_IS_ENABLED(SYS_I2C_LEGACY)
 	u8 __iomem *ptr;
 #ifdef I2C1_BASE_ADDR
 	ptr = (u8 __iomem *)(I2C1_BASE_ADDR + I2C_DEBUG_REG);
@@ -379,7 +391,7 @@ void fsl_lsch3_early_init_f(void)
 	erratum_a009798();
 	erratum_a008997();
 	erratum_a009007();
-	erratum_a050106();
+	erratum_a050204();
 #ifdef CONFIG_CHAIN_OF_TRUST
 	/* In case of Secure Boot, the IBR configures the SMMU
 	* to allow only Secure transactions.
@@ -391,7 +403,8 @@ void fsl_lsch3_early_init_f(void)
 #endif
 
 #if defined(CONFIG_ARCH_LS1088A) || defined(CONFIG_ARCH_LS1028A) || \
-	defined(CONFIG_ARCH_LS2080A) || defined(CONFIG_ARCH_LX2160A)
+	defined(CONFIG_ARCH_LS2080A) || defined(CONFIG_ARCH_LX2160A) || \
+	defined(CONFIG_ARCH_LX2162A)
 	set_icids();
 #endif
 }
@@ -919,25 +932,23 @@ __weak int fsl_board_late_init(void)
 #define DWC3_GSBUSCFG0_CACHETYPE(n)        (((n) & 0xffff)            \
 	<< DWC3_GSBUSCFG0_CACHETYPE_SHIFT)
 
-void enable_dwc3_snooping(void)
+static void enable_dwc3_snooping(void)
 {
-	int ret;
-	u32 val;
-	struct udevice *bus;
-	struct uclass *uc;
+	static const char * const compatibles[] = {
+	    "fsl,layerscape-dwc3",
+	    "fsl,ls1028a-dwc3",
+	};
 	fdt_addr_t dwc3_base;
+	ofnode node;
+	u32 val;
+	int i;
 
-	ret = uclass_get(UCLASS_USB, &uc);
-	if (ret)
-		return;
-
-	uclass_foreach_dev(bus, uc) {
-		if (!strcmp(bus->driver->of_match->compatible, "fsl,layerscape-dwc3")) {
-			dwc3_base = devfdt_get_addr(bus);
-			if (dwc3_base == FDT_ADDR_T_NONE) {
-				dev_err(bus, "dwc3 regs missing\n");
+	for (i = 0; i < ARRAY_SIZE(compatibles); i++) {
+		ofnode_for_each_compatible_node(node, compatibles[i]) {
+			dwc3_base = ofnode_get_addr(node);
+			if (dwc3_base == FDT_ADDR_T_NONE)
 				continue;
-			}
+
 			val = in_le32(dwc3_base + DWC3_GSBUSCFG0);
 			val &= ~DWC3_GSBUSCFG0_CACHETYPE(~0);
 			val |= DWC3_GSBUSCFG0_CACHETYPE(0x2222);
@@ -953,28 +964,15 @@ int board_late_init(void)
 #endif
 #ifdef CONFIG_TFABOOT
 	/*
-	 * check if gd->env_addr is default_environment; then setenv bootcmd
-	 * and mcinitcmd.
+	 * Set bootcmd and mcinitcmd if "fsl_bootcmd_mcinitcmd_set" does
+	 * not exists in env
 	 */
-#ifdef CONFIG_SYS_RELOC_GD_ENV_ADDR
-	if (gd->env_addr == (ulong)&default_environment[0]) {
-#else
-	if (gd->env_addr + gd->reloc_off == (ulong)&default_environment[0]) {
-#endif
+	if (env_get_yesno("fsl_bootcmd_mcinitcmd_set") <= 0) {
+		// Set bootcmd and mcinitcmd as per boot source
 		fsl_setenv_bootcmd();
 		fsl_setenv_mcinitcmd();
+		env_set("fsl_bootcmd_mcinitcmd_set", "y");
 	}
-
-	/*
-	 * If the boot mode is secure, default environment is not present then
-	 * setenv command needs to be run by default
-	 */
-#ifdef CONFIG_CHAIN_OF_TRUST
-	if ((fsl_check_boot_mode_secure() == 1)) {
-		fsl_setenv_bootcmd();
-		fsl_setenv_mcinitcmd();
-	}
-#endif
 #endif
 #ifdef CONFIG_QSPI_AHB_INIT
 	qspi_ahb_init();

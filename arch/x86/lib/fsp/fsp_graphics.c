@@ -3,14 +3,20 @@
  * Copyright (C) 2017, Bin Meng <bmeng.cn@gmail.com>
  */
 
+#define LOG_CATEGORY UCLASS_VIDEO
+
 #include <common.h>
 #include <dm.h>
 #include <init.h>
 #include <log.h>
-#include <vbe.h>
+#include <vesa.h>
 #include <video.h>
+#include <acpi/acpi_table.h>
 #include <asm/fsp/fsp_support.h>
+#include <asm/global_data.h>
+#include <asm/intel_opregion.h>
 #include <asm/mtrr.h>
+#include <dm/acpi.h>
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -75,13 +81,13 @@ static int save_vesa_mode(struct vesa_mode_info *vesa)
 
 static int fsp_video_probe(struct udevice *dev)
 {
-	struct video_uc_platdata *plat = dev_get_uclass_platdata(dev);
+	struct video_uc_plat *plat = dev_get_uclass_plat(dev);
 	struct video_priv *uc_priv = dev_get_uclass_priv(dev);
 	struct vesa_mode_info *vesa = &mode_info.vesa;
 	int ret;
 
 	if (!ll_boot_init())
-		return 0;
+		return -ENODEV;
 
 	printf("Video: ");
 
@@ -100,7 +106,7 @@ static int fsp_video_probe(struct udevice *dev)
 	vesa->phys_base_ptr = dm_pci_read_bar32(dev, 2);
 	gd->fb_base = vesa->phys_base_ptr;
 
-	ret = vbe_setup_video_priv(vesa, uc_priv, plat);
+	ret = vesa_setup_video_priv(vesa, uc_priv, plat);
 	if (ret)
 		goto err;
 
@@ -119,13 +125,39 @@ err:
 
 static int fsp_video_bind(struct udevice *dev)
 {
-	struct video_uc_platdata *plat = dev_get_uclass_platdata(dev);
+	struct video_uc_plat *plat = dev_get_uclass_plat(dev);
 
 	/* Set the maximum supported resolution */
 	plat->size = 2560 * 1600 * 4;
 
 	return 0;
 }
+
+#ifdef CONFIG_INTEL_GMA_ACPI
+static int fsp_video_acpi_write_tables(const struct udevice *dev,
+				       struct acpi_ctx *ctx)
+{
+	struct igd_opregion *opregion;
+	int ret;
+
+	log_debug("ACPI:    * IGD OpRegion\n");
+	opregion = (struct igd_opregion *)ctx->current;
+
+	ret = intel_gma_init_igd_opregion((struct udevice *)dev, opregion);
+	if (ret)
+		return ret;
+
+	acpi_inc_align(ctx, sizeof(struct igd_opregion));
+
+	return 0;
+}
+#endif
+
+struct acpi_ops fsp_video_acpi_ops = {
+#ifdef CONFIG_INTEL_GMA_ACPI
+	.write_tables	= fsp_video_acpi_write_tables,
+#endif
+};
 
 static const struct udevice_id fsp_video_ids[] = {
 	{ .compatible = "fsp-fb" },
@@ -139,6 +171,7 @@ U_BOOT_DRIVER(fsp_video) = {
 	.bind	= fsp_video_bind,
 	.probe	= fsp_video_probe,
 	.flags	= DM_FLAG_PRE_RELOC,
+	ACPI_OPS_PTR(&fsp_video_acpi_ops)
 };
 
 static struct pci_device_id fsp_video_supported[] = {

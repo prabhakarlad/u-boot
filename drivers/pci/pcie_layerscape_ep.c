@@ -5,7 +5,9 @@
  */
 
 #include <common.h>
+#include <asm/arch/fsl_serdes.h>
 #include <dm.h>
+#include <asm/global_data.h>
 #include <dm/devres.h>
 #include <errno.h>
 #include <pci_ep.h>
@@ -242,7 +244,7 @@ static int ls_pcie_ep_probe(struct udevice *dev)
 	int ret;
 	u32 svr;
 
-	pcie = devm_kmalloc(dev, sizeof(*pcie), GFP_KERNEL);
+	pcie = devm_kzalloc(dev, sizeof(*pcie), GFP_KERNEL);
 	if (!pcie)
 		return -ENOMEM;
 
@@ -267,12 +269,18 @@ static int ls_pcie_ep_probe(struct udevice *dev)
 	pcie->idx = ((unsigned long)pcie->dbi - PCIE_SYS_BASE_ADDR) /
 		    PCIE_CCSR_SIZE;
 
+	/* This controller is disabled by RCW */
+	if (!is_serdes_configured(PCIE_SRDS_PRTCL(pcie->idx)))
+		return 0;
+
 	pcie->big_endian = fdtdec_get_bool(gd->fdt_blob, dev_of_offset(dev),
 					   "big-endian");
 
 	svr = SVR_SOC_VER(get_svr());
 
-	if (svr == SVR_LX2160A)
+	if (svr == SVR_LX2160A || svr == SVR_LX2162A ||
+	    svr == SVR_LX2120A || svr == SVR_LX2080A ||
+	    svr == SVR_LX2122A || svr == SVR_LX2082A)
 		pcie_ep->pf1_offset = LX2160_PCIE_PF1_OFFSET;
 	else
 		pcie_ep->pf1_offset = LS_PCIE_PF1_OFFSET;
@@ -294,7 +302,8 @@ static int ls_pcie_ep_probe(struct udevice *dev)
 	pcie_ep->num_ob_wins = fdtdec_get_int(gd->fdt_blob, dev_of_offset(dev),
 					      "num-ob-windows", 8);
 
-	printf("PCIe%u: %s %s", pcie->idx, dev->name, "Endpoint");
+	printf("PCIe%u: %s %s", PCIE_SRDS_PRTCL(pcie->idx), dev->name,
+	       "Endpoint");
 	ls_pcie_setup_ep(pcie_ep);
 
 	if (!ls_pcie_link_up(pcie)) {
@@ -328,5 +337,5 @@ U_BOOT_DRIVER(pci_layerscape_ep) = {
 	.ops = &ls_pcie_ep_ops,
 	.probe = ls_pcie_ep_probe,
 	.remove = ls_pcie_ep_remove,
-	.priv_auto_alloc_size = sizeof(struct ls_pcie_ep),
+	.priv_auto	= sizeof(struct ls_pcie_ep),
 };

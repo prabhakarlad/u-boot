@@ -9,6 +9,27 @@
 	chosen {
 		u-boot,spl-boot-order = "same-as-spl", &sdmmc, &emmc;
 	};
+
+	smbios {
+		compatible = "u-boot,sysinfo-smbios";
+
+		smbios {
+			system {
+				manufacturer = "firefly";
+				product = "roc-rk3328-cc";
+			};
+
+			baseboard {
+				manufacturer = "firefly";
+				product = "roc-rk3328-cc";
+			};
+
+			chassis {
+				manufacturer = "firefly";
+				product = "roc-rk3328-cc";
+			};
+		};
+	};
 };
 
 &gpio0 {
@@ -19,7 +40,7 @@
 	u-boot,dm-spl;
 };
 
-&sdmmc0m1_gpio {
+&sdmmc0m1_pin {
 	u-boot,dm-spl;
 };
 

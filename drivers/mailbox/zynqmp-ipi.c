@@ -11,10 +11,10 @@
 #include <dm.h>
 #include <mailbox-uclass.h>
 #include <dm/device_compat.h>
-#include <mach/sys_proto.h>
 #include <linux/ioport.h>
 #include <linux/io.h>
 #include <wait_bit.h>
+#include <zynqmp_firmware.h>
 
 /* IPI bitmasks, register base */
 /* TODO: move reg base to DT */
@@ -56,7 +56,7 @@ static int zynqmp_ipi_send(struct mbox_chan *chan, const void *data)
 
 	/* Wait until observation bit is cleared */
 	ret = wait_for_bit_le32(&ipi_int_apu->obs, IPI_BIT_MASK_PMU0, false,
-				100, false);
+				1000, false);
 
 	debug("%s, send %ld bytes\n", __func__, msg->len);
 	return ret;
@@ -133,10 +133,10 @@ struct mbox_ops zynqmp_ipi_mbox_ops = {
 };
 
 U_BOOT_DRIVER(zynqmp_ipi) = {
-	.name = "zynqmp-ipi",
+	.name = "zynqmp_ipi",
 	.id = UCLASS_MAILBOX,
 	.of_match = zynqmp_ipi_ids,
 	.probe = zynqmp_ipi_probe,
-	.priv_auto_alloc_size = sizeof(struct zynqmp_ipi),
+	.priv_auto	= sizeof(struct zynqmp_ipi),
 	.ops = &zynqmp_ipi_mbox_ops,
 };

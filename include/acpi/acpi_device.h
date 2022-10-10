@@ -10,7 +10,9 @@
 #define __ACPI_DEVICE_H
 
 #include <i2c.h>
+#include <irq.h>
 #include <spi.h>
+#include <asm-generic/gpio.h>
 #include <linux/bitops.h>
 
 struct acpi_ctx;
@@ -27,6 +29,9 @@ struct udevice;
 
 /* Length of a full path to an ACPI device */
 #define ACPI_PATH_MAX		30
+
+/* UUID for an I2C _DSM method */
+#define ACPI_DSM_I2C_HID_UUID	"3cdff6f7-4267-4555-ad05-b30a3d8938de"
 
 /* Values that can be returned for ACPI device _STA method */
 enum acpi_dev_status {
@@ -165,6 +170,29 @@ enum acpi_gpio_polarity {
  * @io_shared; true if GPIO is shared
  * @io_restrict: I/O restriction setting
  * @polarity: GPIO polarity
+ *
+ * Note that GpioIo() doesn't have any means of Active Low / High setting, so a
+ * _DSD must be provided to mitigate this. This parameter does not make sense
+ * for GpioInt() since it has its own means to define it.
+ *
+ * GpioIo() doesn't properly communicate the initial state of the output pin,
+ * thus Linux assumes the simple rule:
+ *
+ * Pull Bias       Polarity      Requested...
+ *
+ * Implicit        x             AS IS (assumed firmware configured for us)
+ * Explicit        x (no _DSD)   as Pull Bias (Up == High, Down == Low),
+ *                               assuming non-active (Polarity = !Pull Bias)
+ *
+ * Down            Low           as low, assuming active
+ * Down            High          as low, assuming non-active
+ * Up              Low           as high, assuming non-active
+ * Up              High          as high, assuming active
+ *
+ * GpioIo() can be used as interrupt and in this case the IoRestriction mustn't
+ * be OutputOnly. It also requires active_low flag from _DSD in cases where it's
+ * needed (better to always provide than rely on above assumption made on OS
+ * level).
  */
 struct acpi_gpio {
 	int pin_count;
@@ -233,6 +261,59 @@ struct acpi_spi {
 };
 
 /**
+ * struct acpi_i2c_priv - Information read from device tree
+ *
+ * This is used by devices which want to specify various pieces of ACPI
+ * information, including power control. It allows a generic function to
+ * generate the information for ACPI, based on device-tree properties.
+ *
+ * @disable_gpio_export_in_crs: Don't export GPIOs in the CRS
+ * @reset_gpio: GPIO used to assert reset to the device
+ * @enable_gpio: GPIO used to enable the device
+ * @stop_gpio: GPIO used to stop the device
+ * @irq_gpio: GPIO used for interrupt (if @irq is not used)
+ * @irq: IRQ used for interrupt (if @irq_gpio is not used)
+ * @hid: _HID value for device (required)
+ * @uid: _UID value for device
+ * @desc: _DDN value for device
+ * @wake: Wake event, e.g. GPE0_DW1_15; 0 if none
+ * @property_count: Number of other DSD properties (currently always 0)
+ * @probed: true set set 'linux,probed' property
+ * @compat_string: Device tree compatible string to report through ACPI
+ * @has_power_resource: true if this device has a power resource
+ * @reset_delay_ms: Delay after de-asserting reset, in ms
+ * @reset_off_delay_ms: Delay after asserting reset (during power off)
+ * @enable_delay_ms: Delay after asserting enable
+ * @enable_off_delay_ms: Delay after de-asserting enable (during power off)
+ * @stop_delay_ms: Delay after de-aserting stop
+ * @stop_off_delay_ms: Delay after asserting stop (during power off)
+ * @hid_desc_reg_offset: HID register offset (for Human Interface Devices)
+ */
+struct acpi_i2c_priv {
+	bool disable_gpio_export_in_crs;
+	struct gpio_desc reset_gpio;
+	struct gpio_desc enable_gpio;
+	struct gpio_desc irq_gpio;
+	struct gpio_desc stop_gpio;
+	struct irq irq;
+	const char *hid;
+	u32 uid;
+	const char *desc;
+	u32 wake;
+	u32 property_count;
+	bool probed;
+	const char *compat_string;
+	bool has_power_resource;
+	u32 reset_delay_ms;
+	u32 reset_off_delay_ms;
+	u32 enable_delay_ms;
+	u32 enable_off_delay_ms;
+	u32 stop_delay_ms;
+	u32 stop_off_delay_ms;
+	u32 hid_desc_reg_offset;
+};
+
+/**
  * acpi_device_path() - Get the full path to an ACPI device
  *
  * This gets the full path in the form XXXX.YYYY.ZZZZ where XXXX is the root
@@ -241,7 +322,7 @@ struct acpi_spi {
  * @dev: Device to check
  * @buf: Buffer to place the path in (should be ACPI_PATH_MAX long)
  * @maxlen: Size of buffer (typically ACPI_PATH_MAX)
- * @return 0 if OK, -ve on error
+ * Return: 0 if OK, -ve on error
  */
 int acpi_device_path(const struct udevice *dev, char *buf, int maxlen);
 
@@ -254,7 +335,7 @@ int acpi_device_path(const struct udevice *dev, char *buf, int maxlen);
  * @dev: Device to check
  * @buf: Buffer to place the path in (should be ACPI_PATH_MAX long)
  * @maxlen: Size of buffer (typically ACPI_PATH_MAX)
- * @return 0 if OK, -EINVAL if the device has no parent, other -ve on other
+ * Return: 0 if OK, -EINVAL if the device has no parent, other -ve on other
  *	error
  */
 int acpi_device_scope(const struct udevice *dev, char *scope, int maxlen);
@@ -266,7 +347,7 @@ int acpi_device_scope(const struct udevice *dev, char *scope, int maxlen);
  * inactive or hidden devices.
  *
  * @dev: Device to check
- * @return device status, as ACPI_DSTATUS_...
+ * Return: device status, as ACPI_DSTATUS_...
  */
 enum acpi_dev_status acpi_device_status(const struct udevice *dev);
 
@@ -278,7 +359,7 @@ enum acpi_dev_status acpi_device_status(const struct udevice *dev);
  *
  * @ctx: ACPI context pointer
  * @req_irq: Interrupt to output
- * @return IRQ pin number if OK, -ve on error
+ * Return: IRQ pin number if OK, -ve on error
  */
 int acpi_device_write_interrupt_irq(struct acpi_ctx *ctx,
 				    const struct irq *req_irq);
@@ -287,7 +368,7 @@ int acpi_device_write_interrupt_irq(struct acpi_ctx *ctx,
  * acpi_device_write_gpio() - Write GpioIo() or GpioInt() descriptor
  *
  * @gpio: GPIO information to write
- * @return GPIO pin number of first GPIO if OK, -ve on error
+ * Return: GPIO pin number of first GPIO if OK, -ve on error
  */
 int acpi_device_write_gpio(struct acpi_ctx *ctx, const struct acpi_gpio *gpio);
 
@@ -299,7 +380,7 @@ int acpi_device_write_gpio(struct acpi_ctx *ctx, const struct acpi_gpio *gpio);
  *
  * @ctx: ACPI context pointer
  * @desc: GPIO to write
- * @return 0 if OK, -ve on error
+ * Return: 0 if OK, -ve on error
  */
 int acpi_device_write_gpio_desc(struct acpi_ctx *ctx,
 				const struct gpio_desc *desc);
@@ -313,21 +394,32 @@ int acpi_device_write_gpio_desc(struct acpi_ctx *ctx,
  * If an interrupt is found, an ACPI interrupt descriptor is written to the ACPI
  * output. If not, but if a GPIO is found, a GPIO descriptor is written.
  *
- * @return irq or GPIO pin number if OK, -ve if neither an interrupt nor a GPIO
+ * Return: irq or GPIO pin number if OK, -ve if neither an interrupt nor a GPIO
  *	could be found, or some other error occurred
  */
 int acpi_device_write_interrupt_or_gpio(struct acpi_ctx *ctx,
 					struct udevice *dev, const char *prop);
 
 /**
+ * acpi_device_write_dsm_i2c_hid() - Write a device-specific method for HID
+ *
+ * This writes a DSM for an I2C Human-Interface Device based on the config
+ * provided
+ *
+ * @hid_desc_reg_offset: HID register offset
+ */
+int acpi_device_write_dsm_i2c_hid(struct acpi_ctx *ctx,
+				  int hid_desc_reg_offset);
+
+/**
  * acpi_device_write_i2c_dev() - Write an I2C device to ACPI
  *
- * This creates a I2cSerialBus descriptor for an I2C device, including
+ * This creates a I2cSerialBusV2 descriptor for an I2C device, including
  * information ACPI needs to use it.
  *
  * @ctx: ACPI context pointer
  * @dev: I2C device to write
- * @return I2C address of device if OK, -ve on error
+ * Return: I2C address of device if OK, -ve on error
  */
 int acpi_device_write_i2c_dev(struct acpi_ctx *ctx, const struct udevice *dev);
 
@@ -339,7 +431,7 @@ int acpi_device_write_i2c_dev(struct acpi_ctx *ctx, const struct udevice *dev);
  *
  * @ctx: ACPI context pointer
  * @dev: SPI device to write
- * @return 0 if OK, -ve on error
+ * Return: 0 if OK, -ve on error
  */
 int acpi_device_write_spi_dev(struct acpi_ctx *ctx, const struct udevice *dev);
 
@@ -374,7 +466,7 @@ int acpi_device_write_spi_dev(struct acpi_ctx *ctx, const struct udevice *dev);
  * @stop_off_delay_ms: Delay to be inserted after enabling stop.
  *	(_OFF method delay)
  *
- * @return 0 if OK, -ve if at least one GPIO is not provided
+ * Return: 0 if OK, -ve if at least one GPIO is not provided
  */
 int acpi_device_add_power_res(struct acpi_ctx *ctx, u32 tx_state_val,
 			      const char *dw0_read, const char *dw0_write,
@@ -398,7 +490,7 @@ int acpi_device_add_power_res(struct acpi_ctx *ctx, u32 tx_state_val,
  *
  * @dev: Device to check
  * @out_name: Place to put the name (must hold ACPI_NAME_MAX bytes)
- * @return 0 if a name was found, -ENOENT if not found, -ENXIO if the device
+ * Return: 0 if a name was found, -ENOENT if not found, -ENXIO if the device
  *	sequence number could not be determined
  */
 int acpi_device_infer_name(const struct udevice *dev, char *out_name);

@@ -16,6 +16,7 @@ enum uclass_id {
 	UCLASS_DEMO,
 	UCLASS_TEST,
 	UCLASS_TEST_FDT,
+	UCLASS_TEST_FDT_MANUAL,
 	UCLASS_TEST_BUS,
 	UCLASS_TEST_PROBE,
 	UCLASS_TEST_DUMMY,
@@ -36,8 +37,10 @@ enum uclass_id {
 	UCLASS_AUDIO_CODEC,	/* Audio codec with control and data path */
 	UCLASS_AXI,		/* AXI bus */
 	UCLASS_BLK,		/* Block device */
-	UCLASS_BOARD,		/* Device information from hardware */
 	UCLASS_BOOTCOUNT,       /* Bootcount backing store */
+	UCLASS_BOOTDEV,		/* Boot device for locating an OS to boot */
+	UCLASS_BOOTMETH,	/* Bootmethod for booting an OS */
+	UCLASS_BOOTSTD,		/* Standard boot driver */
 	UCLASS_BUTTON,		/* Button */
 	UCLASS_CACHE,		/* Cache controller */
 	UCLASS_CLK,		/* Clock source, e.g. used by peripherals */
@@ -46,12 +49,17 @@ enum uclass_id {
 	UCLASS_DISPLAY,		/* Display (e.g. DisplayPort, HDMI) */
 	UCLASS_DSI_HOST,	/* Display Serial Interface host */
 	UCLASS_DMA,		/* Direct Memory Access */
-	UCLASS_EFI,		/* EFI managed devices */
+	UCLASS_DSA,		/* Distributed (Ethernet) Switch Architecture */
+	UCLASS_ECDSA,		/* Elliptic curve cryptographic device */
+	UCLASS_EFI_LOADER,	/* Devices created by UEFI applications */
+	UCLASS_EFI_MEDIA,	/* Devices provided by UEFI firmware */
 	UCLASS_ETH,		/* Ethernet device */
 	UCLASS_ETH_PHY,		/* Ethernet PHY device */
 	UCLASS_FIRMWARE,	/* Firmware */
+	UCLASS_FUZZING_ENGINE,	/* Fuzzing engine */
 	UCLASS_FS_FIRMWARE_LOADER,		/* Generic loader */
 	UCLASS_GPIO,		/* Bank of general-purpose I/O pins */
+	UCLASS_HASH,		/* Hash device */
 	UCLASS_HWSPINLOCK,	/* Hardware semaphores */
 	UCLASS_I2C,		/* I2C bus */
 	UCLASS_I2C_EEPROM,	/* I2C EEPROM device */
@@ -59,6 +67,7 @@ enum uclass_id {
 	UCLASS_I2C_MUX,		/* I2C multiplexer */
 	UCLASS_I2S,		/* I2S bus */
 	UCLASS_IDE,		/* IDE device */
+	UCLASS_IOMMU,		/* IOMMU */
 	UCLASS_IRQ,		/* Interrupt controller */
 	UCLASS_KEYBOARD,	/* Keyboard input device */
 	UCLASS_LED,		/* Light-emitting diode (LED) */
@@ -71,12 +80,14 @@ enum uclass_id {
 	UCLASS_MMC,		/* SD / MMC card or chip */
 	UCLASS_MOD_EXP,		/* RSA Mod Exp device */
 	UCLASS_MTD,		/* Memory Technology Device (MTD) device */
+	UCLASS_MUX,		/* Multiplexer device */
 	UCLASS_NOP,		/* No-op devices */
 	UCLASS_NORTHBRIDGE,	/* Intel Northbridge / SDRAM controller */
 	UCLASS_NVME,		/* NVM Express device */
 	UCLASS_P2SB,		/* (x86) Primary-to-Sideband Bus */
 	UCLASS_PANEL,		/* Display panel, such as an LCD */
 	UCLASS_PANEL_BACKLIGHT,	/* Backlight controller for panel */
+	UCLASS_PARTITION,	/* Logical disk partition device */
 	UCLASS_PCH,		/* x86 platform controller hub */
 	UCLASS_PCI,		/* PCI bus */
 	UCLASS_PCI_EP,		/* PCI endpoint device */
@@ -88,12 +99,15 @@ enum uclass_id {
 	UCLASS_POWER_DOMAIN,	/* (SoC) Power domains */
 	UCLASS_PWM,		/* Pulse-width modulator */
 	UCLASS_PWRSEQ,		/* Power sequence device */
+	UCLASS_QFW,		/* QEMU firmware config device */
 	UCLASS_RAM,		/* RAM controller */
+	UCLASS_REBOOT_MODE,	/* Reboot mode */
 	UCLASS_REGULATOR,	/* Regulator device */
 	UCLASS_REMOTEPROC,	/* Remote Processor device */
 	UCLASS_RESET,		/* Reset controller device */
 	UCLASS_RNG,		/* Random Number Generator */
 	UCLASS_RTC,		/* Real time clock device */
+	UCLASS_SCMI_AGENT,	/* Interface with an SCMI server */
 	UCLASS_SCSI,		/* SCSI device */
 	UCLASS_SERIAL,		/* Serial UART */
 	UCLASS_SIMPLE_BUS,	/* Bus with child devices */
@@ -105,6 +119,7 @@ enum uclass_id {
 	UCLASS_SPI_GENERIC,	/* Generic SPI flash target */
 	UCLASS_SPMI,		/* System Power Management Interface bus */
 	UCLASS_SYSCON,		/* System configuration device */
+	UCLASS_SYSINFO,		/* Device information from hardware */
 	UCLASS_SYSRESET,	/* System reset device */
 	UCLASS_TEE,		/* Trusted Execution Environment device */
 	UCLASS_THERMAL,		/* Thermal sensor */

@@ -7,13 +7,14 @@
 #include <mapmem.h>
 #include <time.h>
 #include <trace.h>
+#include <asm/global_data.h>
 #include <asm/io.h>
 #include <asm/sections.h>
 
 DECLARE_GLOBAL_DATA_PTR;
 
-static char trace_enabled __attribute__((section(".data")));
-static char trace_inited __attribute__((section(".data")));
+static char trace_enabled __section(".data");
+static char trace_inited __section(".data");
 
 /* The header block at the start of the trace memory area */
 struct trace_hdr {
@@ -57,7 +58,7 @@ static inline uintptr_t __attribute__((no_instrument_function))
 	return offset / FUNC_SITE_SIZE;
 }
 
-#if defined(CONFIG_EFI_LOADER) && defined(CONFIG_ARM)
+#if defined(CONFIG_EFI_LOADER) && (defined(CONFIG_ARM) || defined(CONFIG_RISCV))
 
 /**
  * trace_gd - the value of the gd register

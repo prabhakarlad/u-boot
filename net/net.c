@@ -72,12 +72,6 @@
  *	We want:	- load the boot file
  *	Next step:	none
  *
- * SNTP:
- *
- *	Prerequisites:	- own ethernet address
- *			- own IP address
- *	We want:	- network time
- *	Next step:	none
  *
  * WOL:
  *
@@ -102,6 +96,7 @@
 #if defined(CONFIG_CMD_PCAP)
 #include <net/pcap.h>
 #endif
+#include <net/udp.h>
 #if defined(CONFIG_LED_STATUS)
 #include <miiphy.h>
 #include <status_led.h>
@@ -118,9 +113,6 @@
 #include "nfs.h"
 #include "ping.h"
 #include "rarp.h"
-#if defined(CONFIG_CMD_SNTP)
-#include "sntp.h"
-#endif
 #if defined(CONFIG_CMD_WOL)
 #include "wol.h"
 #endif
@@ -183,13 +175,6 @@ bool net_boot_file_name_explicit;
 u32 net_boot_file_size;
 /* Boot file size in blocks as reported by the DHCP server */
 u32 net_boot_file_expected_size_in_blocks;
-
-#if defined(CONFIG_CMD_SNTP)
-/* NTP server IP address */
-struct in_addr	net_ntp_server;
-/* offset time from UTC */
-int		net_ntp_time_offset;
-#endif
 
 static uchar net_pkt_buf[(PKTBUFSRX+1) * PKTSIZE_ALIGN + PKTALIGN];
 /* Receive packets */
@@ -317,12 +302,12 @@ void net_auto_load(void)
 	if (s != NULL && strcmp(s, "NFS") == 0) {
 		if (net_check_prereq(NFS)) {
 /* We aren't expecting to get a serverip, so just accept the assigned IP */
-#ifdef CONFIG_BOOTP_SERVERIP
-			net_set_state(NETLOOP_SUCCESS);
-#else
-			printf("Cannot autoload with NFS\n");
-			net_set_state(NETLOOP_FAIL);
-#endif
+			if (IS_ENABLED(CONFIG_BOOTP_SERVERIP)) {
+				net_set_state(NETLOOP_SUCCESS);
+			} else {
+				printf("Cannot autoload with NFS\n");
+				net_set_state(NETLOOP_FAIL);
+			}
 			return;
 		}
 		/*
@@ -342,23 +327,30 @@ void net_auto_load(void)
 	}
 	if (net_check_prereq(TFTPGET)) {
 /* We aren't expecting to get a serverip, so just accept the assigned IP */
-#ifdef CONFIG_BOOTP_SERVERIP
-		net_set_state(NETLOOP_SUCCESS);
-#else
-		printf("Cannot autoload with TFTPGET\n");
-		net_set_state(NETLOOP_FAIL);
-#endif
+		if (IS_ENABLED(CONFIG_BOOTP_SERVERIP)) {
+			net_set_state(NETLOOP_SUCCESS);
+		} else {
+			printf("Cannot autoload with TFTPGET\n");
+			net_set_state(NETLOOP_FAIL);
+		}
 		return;
 	}
 	tftp_start(TFTPGET);
 }
 
-static void net_init_loop(void)
+static int net_init_loop(void)
 {
 	if (eth_get_dev())
 		memcpy(net_ethaddr, eth_get_ethaddr(), 6);
+	else
+		/*
+		 * Not ideal, but there's no way to get the actual error, and I
+		 * don't feel like fixing all the users of eth_get_dev to deal
+		 * with errors.
+		 */
+		return -ENONET;
 
-	return;
+	return 0;
 }
 
 static void net_clear_handlers(void)
@@ -373,7 +365,7 @@ static void net_cleanup_loop(void)
 	net_clear_handlers();
 }
 
-void net_init(void)
+int net_init(void)
 {
 	static int first_call = 1;
 
@@ -396,7 +388,7 @@ void net_init(void)
 		first_call = 0;
 	}
 
-	net_init_loop();
+	return net_init_loop();
 }
 
 /**********************************************************************/
@@ -420,7 +412,7 @@ int net_loop(enum proto_t protocol)
 
 	bootstage_mark_name(BOOTSTAGE_ID_ETH_START, "eth_start");
 	net_init();
-	if (eth_is_on_demand_init() || protocol != NETCONS) {
+	if (eth_is_on_demand_init()) {
 		eth_halt();
 		eth_set_current();
 		ret = eth_init();
@@ -520,11 +512,6 @@ restart:
 			nc_start();
 			break;
 #endif
-#if defined(CONFIG_CMD_SNTP)
-		case SNTP:
-			sntp_start();
-			break;
-#endif
 #if defined(CONFIG_CMD_DNS)
 		case DNS:
 			dns_start();
@@ -543,6 +530,9 @@ restart:
 		default:
 			break;
 		}
+
+		if (IS_ENABLED(CONFIG_PROT_UDP) && protocol == UDP)
+			udp_start();
 
 		break;
 	}
@@ -917,6 +907,9 @@ static struct ip_udp_hdr *__net_defragment(struct ip_udp_hdr *ip, int *lenp)
 	int offset8, start, len, done = 0;
 	u16 ip_off = ntohs(ip->ip_off);
 
+	if (ip->ip_len < IP_MIN_FRAG_DATAGRAM_SIZE)
+		return NULL;
+
 	/* payload starts after IP header, this fragment is in there */
 	payload = (struct hole *)(pkt_buff + IP_HDR_SIZE);
 	offset8 =  (ip_off & IP_OFFS);
@@ -1274,8 +1267,7 @@ void net_process_received_packet(uchar *in_packet, int len)
 			   "received UDP (to=%pI4, from=%pI4, len=%d)\n",
 			   &dst_ip, &src_ip, len);
 
-#ifdef CONFIG_UDP_CHECKSUM
-		if (ip->udp_xsum != 0) {
+		if (IS_ENABLED(CONFIG_UDP_CHECKSUM) && ip->udp_xsum != 0) {
 			ulong   xsum;
 			u8 *sumptr;
 			ushort  sumlen;
@@ -1308,7 +1300,6 @@ void net_process_received_packet(uchar *in_packet, int len)
 				return;
 			}
 		}
-#endif
 
 #if defined(CONFIG_NETCONSOLE) && !defined(CONFIG_SPL_BUILD)
 		nc_input_packet((uchar *)ip + IP_UDP_HDR_SIZE,
@@ -1348,14 +1339,6 @@ static int net_check_prereq(enum proto_t protocol)
 		}
 		goto common;
 #endif
-#if defined(CONFIG_CMD_SNTP)
-	case SNTP:
-		if (net_ntp_server.s_addr == 0) {
-			puts("*** ERROR: NTP server address not given\n");
-			return 1;
-		}
-		goto common;
-#endif
 #if defined(CONFIG_CMD_DNS)
 	case DNS:
 		if (net_dns_server.s_addr == 0) {
@@ -1364,6 +1347,13 @@ static int net_check_prereq(enum proto_t protocol)
 		}
 		goto common;
 #endif
+#if defined(CONFIG_PROT_UDP)
+	case UDP:
+		if (udp_prereq())
+			return 1;
+		goto common;
+#endif
+
 #if defined(CONFIG_CMD_NFS)
 	case NFS:
 #endif
@@ -1374,8 +1364,8 @@ static int net_check_prereq(enum proto_t protocol)
 			puts("*** ERROR: `serverip' not set\n");
 			return 1;
 		}
-#if	defined(CONFIG_CMD_PING) || defined(CONFIG_CMD_SNTP) || \
-	defined(CONFIG_CMD_DNS)
+#if	defined(CONFIG_CMD_PING) || \
+	defined(CONFIG_CMD_DNS) || defined(CONFIG_PROT_UDP)
 common:
 #endif
 		/* Fall through */
@@ -1551,14 +1541,19 @@ int is_serverip_in_cmd(void)
 int net_parse_bootfile(struct in_addr *ipaddr, char *filename, int max_len)
 {
 	char *colon;
+	struct in_addr ip;
+	ip.s_addr = 0;
 
 	if (net_boot_file_name[0] == '\0')
 		return 0;
 
 	colon = strchr(net_boot_file_name, ':');
 	if (colon) {
-		if (ipaddr)
-			*ipaddr = string_to_ip(net_boot_file_name);
+		ip = string_to_ip(net_boot_file_name);
+		if (ipaddr && ip.s_addr)
+			*ipaddr = ip;
+	}
+	if (ip.s_addr) {
 		strncpy(filename, colon + 1, max_len);
 	} else {
 		strncpy(filename, net_boot_file_name, max_len);
@@ -1602,7 +1597,7 @@ ushort string_to_vlan(const char *s)
 	if (*s < '0' || *s > '9')
 		id = VLAN_NONE;
 	else
-		id = (ushort)simple_strtoul(s, NULL, 10);
+		id = (ushort)dectoul(s, NULL);
 
 	return htons(id);
 }

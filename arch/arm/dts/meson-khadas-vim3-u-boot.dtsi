@@ -4,12 +4,14 @@
  * Author: Neil Armstrong <narmstrong@baylibre.com>
  */
 
-#include "meson-g12-common-u-boot.dtsi"
-
 / {
 	aliases {
 		spi0 = &spifc;
 	};
+};
+
+&pcie {
+	status = "okay";
 };
 
 &sd_emmc_c {

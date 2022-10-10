@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright 2016-2018 NXP
+ * Copyright 2016-2018, 2020 NXP
  * Copyright 2014-2015 Freescale Semiconductor, Inc.
  */
 
@@ -26,7 +26,7 @@ static u8 serdes3_prtcl_map[SERDES_PRCTL_COUNT];
 #endif
 
 #if defined(CONFIG_FSL_MC_ENET) && !defined(CONFIG_SPL_BUILD)
-#ifdef CONFIG_ARCH_LX2160A
+#if defined(CONFIG_ARCH_LX2160A) || defined(CONFIG_ARCH_LX2162A)
 int xfi_dpmac[XFI14 + 1];
 int sgmii_dpmac[SGMII18 + 1];
 int a25gaui_dpmac[_25GE10 + 1];
@@ -147,10 +147,14 @@ void serdes_init(u32 sd, u32 sd_addr, u32 rcwsr, u32 sd_prctl_mask,
 	cfg >>= sd_prctl_shift;
 
 	cfg = serdes_get_number(sd, cfg);
-	printf("Using SERDES%d Protocol: %d (0x%x)\n", sd + 1, cfg, cfg);
+	if (cfg == 0) {
+		printf("SERDES%d is disabled\n", sd + 1);
+	} else {
+		printf("Using SERDES%d Protocol: %d (0x%x)\n", sd + 1, cfg, cfg);
 
-	if (!is_serdes_prtcl_valid(sd, cfg))
-		printf("SERDES%d[PRTCL] = 0x%x is not valid\n", sd + 1, cfg);
+		if (!is_serdes_prtcl_valid(sd, cfg))
+			printf("SERDES%d[PRTCL] = 0x%x is not valid\n", sd + 1, cfg);
+	}
 
 	for (lane = 0; lane < SRDS_MAX_LANES; lane++) {
 		enum srds_prtcl lane_prtcl = serdes_get_prtcl(sd, cfg, lane);
@@ -159,7 +163,7 @@ void serdes_init(u32 sd, u32 sd_addr, u32 rcwsr, u32 sd_prctl_mask,
 		else {
 			serdes_prtcl_map[lane_prtcl] = 1;
 #if defined(CONFIG_FSL_MC_ENET) && !defined(CONFIG_SPL_BUILD)
-#ifdef CONFIG_ARCH_LX2160A
+#if defined(CONFIG_ARCH_LX2160A) || defined(CONFIG_ARCH_LX2162A)
 			if (lane_prtcl >= XFI1 && lane_prtcl <= XFI14)
 				wriop_init_dpmac(sd, xfi_dpmac[lane_prtcl],
 						 (int)lane_prtcl);
@@ -552,7 +556,7 @@ void fsl_serdes_init(void)
 #if defined(CONFIG_FSL_MC_ENET) && !defined(CONFIG_SPL_BUILD)
 	int i , j;
 
-#ifdef CONFIG_ARCH_LX2160A
+#if defined(CONFIG_ARCH_LX2160A) || defined(CONFIG_ARCH_LX2162A)
 	for (i = XFI1, j = 1; i <= XFI14; i++, j++)
 		xfi_dpmac[i] = j;
 

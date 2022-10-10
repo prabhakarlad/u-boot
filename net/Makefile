@@ -9,8 +9,10 @@ obj-$(CONFIG_NET)      += arp.o
 obj-$(CONFIG_CMD_BOOTP) += bootp.o
 obj-$(CONFIG_CMD_CDP)  += cdp.o
 obj-$(CONFIG_CMD_DNS)  += dns.o
+obj-$(CONFIG_DM_DSA)   += dsa-uclass.o
 ifdef CONFIG_DM_ETH
 obj-$(CONFIG_NET)      += eth-uclass.o
+obj-$(CONFIG_$(SPL_TPL_)BOOTDEV_ETH) += eth_bootdev.o
 else
 obj-$(CONFIG_NET)      += eth_legacy.o
 endif
@@ -27,6 +29,7 @@ obj-$(CONFIG_CMD_SNTP) += sntp.o
 obj-$(CONFIG_CMD_TFTPBOOT) += tftp.o
 obj-$(CONFIG_UDP_FUNCTION_FASTBOOT)  += fastboot.o
 obj-$(CONFIG_CMD_WOL)  += wol.o
+obj-$(CONFIG_PROT_UDP) += udp.o
 
 # Disable this warning as it is triggered by:
 # sprintf(buf, index ? "foo%d" : "foo", index)
