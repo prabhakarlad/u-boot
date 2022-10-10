@@ -239,8 +239,14 @@ void board_init_f(ulong dummy)
 	if (ret)
 		panic("spl_early_init() failed: %d\n", ret);
 
+#if 0
+	/* TODO: check is this needed?
+	 * works in v2020.10 without this
+	 * so maybe can be dropped?
+	 */
     /* Initialize CPU Architecure */
 	arch_cpu_init_dm();
+#endif
 
     /* Initialixe Bord part */
     spl_early_board_init_f();
