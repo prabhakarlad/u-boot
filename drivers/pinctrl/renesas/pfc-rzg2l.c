@@ -53,7 +53,7 @@ static void rzg2l_pinctrl_set_function(struct rzg2l_pinctrl_priv *priv,
 
 static int rzg2l_pinctrl_set_state(struct udevice *dev, struct udevice *config)
 {
-	struct rzg2l_pinctrl_priv *priv = dev_get_plat(dev);
+	struct rzg2l_pinctrl_priv *priv = dev_get_priv(dev);
 	u16 port;
 	u16 port_max = (u16)dev_get_driver_data(dev);
 	u8 pin, func;
@@ -101,7 +101,7 @@ const struct pinctrl_ops rzg2l_pinctrl_ops  = {
 
 static int rzg2l_pinctrl_probe(struct udevice *dev)
 {
-	struct rzg2l_pinctrl_priv *priv = dev_get_plat(dev);
+	struct rzg2l_pinctrl_priv *priv = dev_get_priv(dev);
 	ofnode node;
 
 	priv->regs = dev_read_addr_ptr(dev);
