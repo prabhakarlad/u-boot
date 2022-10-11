@@ -51,16 +51,37 @@
 
 /* ENV setting */
 #define CONFIG_EXTRA_ENV_SETTINGS	\
-	"bootm_size=0x10000000\0" \
-		"bootargs root =" \
-			"/dev/mmcblk0p2" \
-		"bootcmd_mmc=" \
-			"setenv bootargs root=/dev/mmcblk0p2 rw rootwait;" \
-			"ext4load mmc 1:1 0x48080000 Image; " \
-			"ext4load mmc 1:1 0x48000000 "CONFIG_DEFAULT_FDT_FILE"; " \
-			"booti 0x48080000 - 0x48000000" \
-		"bootcmd=" \
-			"run bootcmd_mmc"
+	"fdt_addr_r=0x48000000\0" \
+	"fdtfile=r9a07g043f01-smarc.dtb\0" \
+	"kernel_addr_r=0x48080000\0" \
+	"boot_efi_binary=efi/boot/"BOOTEFI_NAME"\0" \
+	"boot_mmc=" \
+			"if test -e mmc ${mmcdev}:1 ${boot_efi_binary}; then " \
+				"load mmc ${mmcdev}:1 " \
+				"${kernel_addr_r} ${boot_efi_binary};" \
+				"bootefi ${kernel_addr_r};" \
+			"elif test -e mmc ${mmcdev}:2 ${boot_efi_binary}; then " \
+				"load mmc ${mmcdev}:2 " \
+				"${kernel_addr_r} ${boot_efi_binary};" \
+				"bootefi ${kernel_addr_r};" \
+			"fi;\0" \
+	"load_mmc=" \
+			"setenv mmcdev 0;" \
+			"run boot_mmc;" \
+			"setenv mmcdev 1;" \
+			"run boot_mmc; \0" \
+	"distro_bootcmd=" \
+			"run load_mmc;\0" \
+	"bootcmd=run distro_bootcmd\0" \
+
+#ifndef CONFIG_SPL_BUILD
+#define BOOT_TARGET_DEVICES(func) \
+	func(MMC, mmc, 1) \
+	func(MMC, mmc, 0) \
+	func(PXE, pxe, na) \
+	func(DHCP, dhcp, na)
+#include <config_distro_bootcmd.h>
+#endif
 
 /* For board */
 /* Ethernet RAVB */
