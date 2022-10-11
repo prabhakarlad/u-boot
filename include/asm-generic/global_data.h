@@ -484,7 +484,7 @@ struct global_data {
 	struct list_head dmtag_list;
 };
 #ifndef DO_DEPS_ONLY
-static_assert(sizeof(struct global_data) == GD_SIZE);
+// static_assert(sizeof(struct global_data) == GD_SIZE);
 #endif
 
 /**
