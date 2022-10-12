@@ -54,25 +54,7 @@
 	"fdt_addr_r=0x48000000\0" \
 	"fdtfile=r9a07g043f01-smarc.dtb\0" \
 	"kernel_addr_r=0x48080000\0" \
-	"boot_efi_binary=efi/boot/"BOOTEFI_NAME"\0" \
-	"boot_mmc=" \
-			"if test -e mmc ${mmcdev}:1 ${boot_efi_binary}; then " \
-				"load mmc ${mmcdev}:1 " \
-				"${kernel_addr_r} ${boot_efi_binary};" \
-				"bootefi ${kernel_addr_r};" \
-			"elif test -e mmc ${mmcdev}:2 ${boot_efi_binary}; then " \
-				"load mmc ${mmcdev}:2 " \
-				"${kernel_addr_r} ${boot_efi_binary};" \
-				"bootefi ${kernel_addr_r};" \
-			"fi;\0" \
-	"load_mmc=" \
-			"setenv mmcdev 0;" \
-			"run boot_mmc;" \
-			"setenv mmcdev 1;" \
-			"run boot_mmc; \0" \
-	"distro_bootcmd=" \
-			"run load_mmc;\0" \
-	"bootcmd=run distro_bootcmd\0" \
+	BOOTENV
 
 #ifndef CONFIG_SPL_BUILD
 #define BOOT_TARGET_DEVICES(func) \
