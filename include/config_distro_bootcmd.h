@@ -134,9 +134,9 @@
 #define BOOTENV_EFI_BOOTMGR                                               \
 	"boot_efi_bootmgr="                                               \
 		"if fdt addr -q ${fdt_addr_r}; then "                     \
-			"bootefi bootmgr ${fdt_addr_r};"                  \
+			"sbi_enable_l1_dcache;bootefi bootmgr ${fdt_addr_r};"                  \
 		"else "                                                   \
-			"bootefi bootmgr;"                                \
+			"sbi_enable_l1_dcache;bootefi bootmgr;"                                \
 		"fi\0"
 #else
 #define BOOTENV_EFI_BOOTMGR
@@ -149,9 +149,9 @@
 		"load ${devtype} ${devnum}:${distro_bootpart} "           \
 			"${kernel_addr_r} efi/boot/"BOOTEFI_NAME"; "      \
 		"if fdt addr -q ${fdt_addr_r}; then "                     \
-			"bootefi ${kernel_addr_r} ${fdt_addr_r};"         \
+			"sbi_enable_l1_dcache;bootefi ${kernel_addr_r} ${fdt_addr_r};"         \
 		"else "                                                   \
-			"bootefi ${kernel_addr_r} ${fdtcontroladdr};"     \
+			"sbi_enable_l1_dcache;bootefi ${kernel_addr_r} ${fdtcontroladdr};"     \
 		"fi\0"                                                    \
 	\
 	"load_efi_dtb="                                                   \
@@ -368,9 +368,9 @@
 	"if dhcp ${kernel_addr_r}; then "                                 \
 		"tftpboot ${fdt_addr_r} dtb/${efi_fdtfile};"              \
 		"if fdt addr -q ${fdt_addr_r}; then "                     \
-			"bootefi ${kernel_addr_r} ${fdt_addr_r}; "        \
+			"sbi_enable_l1_dcache;bootefi ${kernel_addr_r} ${fdt_addr_r}; "        \
 		"else "                                                   \
-			"bootefi ${kernel_addr_r} ${fdtcontroladdr};"     \
+			"sbi_enable_l1_dcache;bootefi ${kernel_addr_r} ${fdtcontroladdr};"     \
 		"fi;"                                                     \
 	"fi;"                                                             \
 	"setenv bootp_vci ${efi_old_vci};"                                \
