@@ -6,7 +6,7 @@
  */
 #include <dt-bindings/clock/r9a07g043f-cpg.h>
 / {
-	compatible = "renesas,rzf";
+	compatible = "renesas,r9a07g043";
 	#address-cells = <2>;
 	#size-cells = <2>;
 
@@ -321,11 +321,12 @@
 		};
 
 		L2: l2-cache@13400000 {
-			u-boot,dm-spl;
 			compatible = "v5l2cache";
 			cache-level = <2>;
 			cache-size = <0x40000>;
-			reg = <0x0 0x13400000 0x0 0x40000>;
+			cache-line-size = <64>;
+			cache-sets = <1024>;
+			reg = <0x0 0x13400000 0x0 0x100000>;
 			andes,inst-prefetch = <0x3>;
 			andes,data-prefetch = <0x3>;
 			andes,tag-ram-ctl = <1 0>;

@@ -13,8 +13,8 @@
 #include "binman.dtsi"
 
 / {
-	model = "smarc-rzf";
-	compatible = "renesas,rzf";
+	compatible = "renesas,smarc-evk", "renesas,r9a07g043f01", "renesas,r9a07g043";
+	model = "Renesas SMARC EVK based on r9a07g043f01";
 
 	aliases {
 		serial0 = &scif0;
