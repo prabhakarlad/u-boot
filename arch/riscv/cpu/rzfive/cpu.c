@@ -18,6 +18,7 @@
 
 #define V5_MCACHE_CTL_IC_EN_OFFSET		0
 #define V5_MCACHE_CTL_DC_EN_OFFSET		1
+#define V5_MMISC_CTL_MSA_OR_UNA_OFFSET		6
 #define V5_MCACHE_CTL_CCTL_SUEN_OFFSET		8
 #define V5_MCACHE_CTL_L1I_PREFETCH_OFFSET	9
 #define V5_MCACHE_CTL_L1D_PREFETCH_OFFSET	10
@@ -38,6 +39,7 @@
 #define V5_MCACHE_CTL_DC_WAROUND_1_EN	BIT(V5_MCACHE_CTL_DC_WAROUND_OFFSET_1)
 #define V5_MCACHE_CTL_DC_WAROUND_2_EN	BIT(V5_MCACHE_CTL_DC_WAROUND_OFFSET_2)
 #define V5_MCACHE_CTL_DC_COHSTA_EN	BIT(V5_MCACHE_CTL_DC_COHSTA_OFFSET)
+#define V5_MMISC_CTL_MSA_OR_UNA_EN      BIT(V5_MMISC_CTL_MSA_OR_UNA_OFFSET)
 
 /*
  * cleanup_before_linux() is called just before we call linux
@@ -80,6 +82,7 @@ void harts_early_init(void)
 		unsigned long long mmisc_ctl_val = csr_read(CSR_MMISCCTL);
 		if (!(mmisc_ctl_val & V5_MMISC_CTL_NON_BLOCKING_EN))
 			mmisc_ctl_val |= V5_MMISC_CTL_NON_BLOCKING_EN;
+		mmisc_ctl_val &= ~(V5_MMISC_CTL_MSA_OR_UNA_EN);
 		csr_write(CSR_MMISCCTL, mmisc_ctl_val);
 
 	}
