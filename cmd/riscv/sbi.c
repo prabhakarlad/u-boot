@@ -158,7 +158,7 @@ int do_sbi_get_mcache_ctl_status(struct cmd_tbl *cmdtp, int flag, int argc,
 {
 	struct sbiret ret;
 
-	ret = sbi_ecall(SBI_EXT_VENDOR, SBI_EXT_ANDES_GET_MCACHE_CTL_STATUS,
+	ret = sbi_ecall(SBI_EXT_VENDOR, 1,
 			0, 0, 0, 0, 0, 0);
 	printf("sbi_get_mcache_ctl_status/n");
 	printf("value :  %ld\n", ret.value);
@@ -193,7 +193,7 @@ int do_sbi_get_mmisc_ctl_status(struct cmd_tbl *cmdtp, int flag, int argc,
 {
 	struct sbiret ret;
 
-	ret = sbi_ecall(SBI_EXT_VENDOR, SBI_EXT_ANDES_GET_MMISC_CTL_STATUS,
+	ret = sbi_ecall(SBI_EXT_VENDOR, 2,
 			0, 0, 0, 0, 0, 0);
 	printf("sbi_get_mmisc_ctl_status/n");
 	printf("value :  %ld\n", ret.value);
