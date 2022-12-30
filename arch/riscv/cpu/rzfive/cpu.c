@@ -53,9 +53,10 @@ int cleanup_before_linux(void)
 
 	/* turn off I/D-cache */
 	cache_flush();
+#if 0
 	icache_disable();
 	dcache_disable();
-
+#endif
 	return 0;
 }
 
