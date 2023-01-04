@@ -33,12 +33,6 @@
 	};
 };
 
-&L2 {
-	andestech,pma-regions = <0x0 0x58000000 0x0 0x08000000
-				 (AX45MP_PMACFG_ETYP_NAPOT |
-				  AX45MP_PMACFG_MTYP_MEM_NON_CACHE_BUF)>;
-};
-
 &pinctrl {
 	scif0_pins: scif0 {
 		pinmux = <RZG2L_PINMUX(6, 4, 6)>,
