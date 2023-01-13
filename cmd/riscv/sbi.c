@@ -129,7 +129,7 @@ U_BOOT_CMD_COMPLETE(
 
 #define SBI_EXT_RENESAS 0x90000000
 
-#define SBI_EXT_VENDOR 0x09000000
+#define SBI_EXT_VENDOR 0x900031e
 #define SBI_EXT_ANDES_GET_MCACHE_CTL_STATUS   0
 #define SBI_EXT_ANDES_GET_MMISC_CTL_STATUS    1
 #define SBI_EXT_ANDES_SET_MCACHE_CTL          2
@@ -452,6 +452,46 @@ write_around_end:
 	return 0;
 }
 
+int do_sbi_read_lm(struct cmd_tbl *cmdtp, int flag,
+		   int argc, char *const argv[])
+{
+	struct sbiret ret;
+	ulong addr;
+
+	if (argc < 2)
+		return CMD_RET_USAGE;
+
+	addr = hextoul(argv[1], NULL);
+
+	ret = sbi_ecall(SBI_EXT_VENDOR, 3,
+			addr, 0, 0, 0, 0, 0);
+	printf("sbi_read_lm/n :%lx\n", addr);
+	printf("value :  %lx\n", ret.value);
+	printf("error :  %ld\n", ret.error);
+
+	return 0;
+}
+
+int do_sbi_write_lm(struct cmd_tbl *cmdtp, int flag,
+		    int argc, char *const argv[])
+{
+	struct sbiret ret;
+	ulong addr, data;
+
+	if (argc < 3)
+		return CMD_RET_USAGE;
+
+	addr = hextoul(argv[1], NULL);
+	data = hextoul(argv[2], NULL);
+
+	ret = sbi_ecall(SBI_EXT_VENDOR, 4,
+			addr, data, 0, 0, 0, 0);
+	printf("sbi_write_lm/n :%lx %lx\n", addr, data);
+	printf("value :  %lx\n", ret.value);
+	printf("error :  %ld\n", ret.error);
+
+	return 0;
+}
 
 U_BOOT_CMD_COMPLETE(sbi_get_mcache_ctl_status, 1, 0, do_sbi_get_mcache_ctl_status,"OpenSBI DEBUG:GET_MCACHE_CTL_STATUS",NULL, NULL);
 U_BOOT_CMD_COMPLETE(sbi_get_mmisc_ctl_status, 1, 0, do_sbi_get_mmisc_ctl_status,"OpenSBI DEBUG:GET_MMISC_CTL_STATUS",NULL, NULL);
@@ -465,6 +505,9 @@ U_BOOT_CMD_COMPLETE(sbi_non_blocking_load_store_en, 2, 0, do_sbi_non_blocking_lo
 U_BOOT_CMD_COMPLETE(sbi_write_around_en, 2, 0, do_sbi_write_around,"OpenSBI DEBUG:WRITE_AROUND_EN",NULL, NULL);
 U_BOOT_CMD_COMPLETE(sbi_enable_l1_dcache, 1, 0, do_sbi_enable_l1_dcache,"OpenSBI DEBUG:ENABLE_L1_DCACHE",NULL, NULL);
 U_BOOT_CMD_COMPLETE(sbi_disable_l1_dcache, 1, 0, do_sbi_disable_l1_dcache,"OpenSBI DEBUG:DISABLE_L1_DCACHE",NULL, NULL);
+
+U_BOOT_CMD_COMPLETE(sbi_read_lm, 2, 0, do_sbi_read_lm,"OpenSBI DEBUG:READ_LM",NULL, NULL);
+U_BOOT_CMD_COMPLETE(sbi_write_lm, 3, 0, do_sbi_write_lm,"OpenSBI DEBUG:WRITE_LM",NULL, NULL);
 
 int do_sbi_ext_set_timer(struct cmd_tbl *cmdtp, int flag, int argc,
 			 char *const argv[])
