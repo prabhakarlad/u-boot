@@ -10,6 +10,11 @@
 #include <asm/sbi.h>
 #include <irq_func.h>
 
+#define RENESAS_RZFIVE_SBI_EXT_GET_MCACHE_CTL_STATUS	2
+#define RENESAS_RZFIVE_SBI_EXT_GET_MMISC_CTL_STATUS	3
+#define RENESAS_RZFIVE_SBI_EXT_READ_LM			4
+#define RENESAS_RZFIVE_SBI_EXT_WRITE_LM			5
+
 struct sbi_imp {
 	const long id;
 	const char *name;
@@ -162,7 +167,7 @@ int do_sbi_get_mcache_ctl_status(struct cmd_tbl *cmdtp, int flag, int argc,
 {
 	struct sbiret ret;
 
-	ret = sbi_ecall(SBI_EXT_VENDOR, 1,
+	ret = sbi_ecall(SBI_EXT_VENDOR, RENESAS_RZFIVE_SBI_EXT_GET_MCACHE_CTL_STATUS,
 			0, 0, 0, 0, 0, 0);
 	printf("sbi_get_mcache_ctl_status/n");
 	printf("value :  %ld\n", ret.value);
@@ -197,7 +202,7 @@ int do_sbi_get_mmisc_ctl_status(struct cmd_tbl *cmdtp, int flag, int argc,
 {
 	struct sbiret ret;
 
-	ret = sbi_ecall(SBI_EXT_VENDOR, 2,
+	ret = sbi_ecall(SBI_EXT_VENDOR, RENESAS_RZFIVE_SBI_EXT_GET_MMISC_CTL_STATUS,
 			0, 0, 0, 0, 0, 0);
 	printf("sbi_get_mmisc_ctl_status/n");
 	printf("value :  %ld\n", ret.value);
@@ -463,7 +468,7 @@ int do_sbi_read_lm(struct cmd_tbl *cmdtp, int flag,
 
 	addr = hextoul(argv[1], NULL);
 
-	ret = sbi_ecall(SBI_EXT_VENDOR, 3,
+	ret = sbi_ecall(SBI_EXT_VENDOR, RENESAS_RZFIVE_SBI_EXT_READ_LM,
 			addr, 0, 0, 0, 0, 0);
 	printf("sbi_read_lm/n :%lx\n", addr);
 	printf("value :  %lx\n", ret.value);
@@ -484,7 +489,7 @@ int do_sbi_write_lm(struct cmd_tbl *cmdtp, int flag,
 	addr = hextoul(argv[1], NULL);
 	data = hextoul(argv[2], NULL);
 
-	ret = sbi_ecall(SBI_EXT_VENDOR, 4,
+	ret = sbi_ecall(SBI_EXT_VENDOR, RENESAS_RZFIVE_SBI_EXT_WRITE_LM,
 			addr, data, 0, 0, 0, 0);
 	printf("sbi_write_lm/n :%lx %lx\n", addr, data);
 	printf("value :  %lx\n", ret.value);
