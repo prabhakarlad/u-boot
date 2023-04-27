@@ -2,7 +2,7 @@
 /*
  * Pin controller driver for Renesas RZ/G2L SoCs.
  *
- * Copyright (C) 2020 Renesas Electronics Corporation
+ * Copyright (C) 2023 Renesas Electronics Corporation
  */
 
 #include <common.h>

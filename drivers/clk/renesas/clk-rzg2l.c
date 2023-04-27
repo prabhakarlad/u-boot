@@ -2,7 +2,7 @@
 /*
  * Renesas RZ/G2L CLK driver
  *
- * Copyright (C) 2020 Renesas Electronics Corp.
+ * Copyright (C) 2023 Renesas Electronics Corp.
  * 
  * Based on the following driver from Linux kernel:
  * r8a774a1 Clock Pulse Generator / Module Standby and Software Reset 

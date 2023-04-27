@@ -2,7 +2,7 @@
 /*
  * Device Tree Source for the RZ/Five SMARC EVK board
  *
- * Copyright (C) 2022 Renesas Electronics
+ * Copyright (C) 2023 Renesas Electronics Corporation
  */
 
 /dts-v1/;

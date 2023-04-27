@@ -2,7 +2,7 @@
 /*
  * Device Tree Source for common parts of rzv-dev board
  *
- * Copyright (C) 2022 Renesas Electronics Corp.
+ * Copyright (C) 2023 Renesas Electronics Corporation
  */
 #include <dt-bindings/pinctrl/rzg2l-pinctrl.h>
 

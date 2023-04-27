@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (C) 2017 Andes Technology Corporation
- * Rick Chen, Andes Technology Corporation <rick@andestech.com>
+ * Copyright (C) 2023 Renesas Electronics Corporation
+ *
+ * Based on arch/riscv/cpu/ax25/cpu.c
  */
 
 /* CPU specific code */
