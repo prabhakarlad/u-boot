@@ -11,6 +11,7 @@
 #include <irq_func.h>
 #include <asm/cache.h>
 #include <asm/csr.h>
+#include <asm/sbi.h>
 
 #define CSR_MCACHE_CTL		0x7ca
 #define CSR_MMISC_CTL		0x7d0
@@ -50,6 +51,8 @@
  */
 int cleanup_before_linux(void)
 {
+	struct sbiret sret;
+
 	disable_interrupts();
 
 	/* turn off I/D-cache */
@@ -58,6 +61,8 @@ int cleanup_before_linux(void)
 	icache_disable();
 	dcache_disable();
 #endif
+
+	sret = sbi_ecall(0x900031e, 6, 1, 0, 0, 0, 0, 0);
 	return 0;
 }
 
@@ -65,25 +70,20 @@ void harts_early_init(void)
 {
 	if (CONFIG_IS_ENABLED(RISCV_MMODE)) {
 		unsigned long long mcache_ctl_val = csr_read(CSR_MCACHE_CTL);
+		unsigned long long mmisc_ctl_val;
 
 		/* enable L1 cache */
-		if (!(mcache_ctl_val & V5_MCACHE_CTL_IC_EN))
-			mcache_ctl_val |= V5_MCACHE_CTL_IC_EN;
-		if (!(mcache_ctl_val & V5_MCACHE_CTL_DC_EN))
-			mcache_ctl_val |= V5_MCACHE_CTL_DC_EN;
-		if (!(mcache_ctl_val & V5_MCACHE_CTL_CCTL_SUEN))
-			mcache_ctl_val |= V5_MCACHE_CTL_CCTL_SUEN;
-		if (!(mcache_ctl_val & V5_MCACHE_CTL_L1I_PREFETCH_EN))
-			mcache_ctl_val |= V5_MCACHE_CTL_L1I_PREFETCH_EN;
-		if (!(mcache_ctl_val & V5_MCACHE_CTL_L1D_PREFETCH_EN))
-			mcache_ctl_val |= V5_MCACHE_CTL_L1D_PREFETCH_EN;
+		mcache_ctl_val |= V5_MCACHE_CTL_IC_EN;
+		mcache_ctl_val |= V5_MCACHE_CTL_DC_EN;
+		mcache_ctl_val |= V5_MCACHE_CTL_CCTL_SUEN;
+		mcache_ctl_val |= V5_MCACHE_CTL_L1I_PREFETCH_EN;
+		mcache_ctl_val |= V5_MCACHE_CTL_L1D_PREFETCH_EN;
 		mcache_ctl_val &= ~(V5_MCACHE_CTL_DC_WAROUND_1_EN | V5_MCACHE_CTL_DC_WAROUND_2_EN);
 		mcache_ctl_val |= V5_MCACHE_CTL_DC_WAROUND_1_EN;
 		csr_write(CSR_MCACHE_CTL, mcache_ctl_val);
 
-		unsigned long long mmisc_ctl_val = csr_read(CSR_MMISCCTL);
-		if (!(mmisc_ctl_val & V5_MMISC_CTL_NON_BLOCKING_EN))
-			mmisc_ctl_val |= V5_MMISC_CTL_NON_BLOCKING_EN;
+		mmisc_ctl_val = csr_read(CSR_MMISCCTL);
+		mmisc_ctl_val |= V5_MMISC_CTL_NON_BLOCKING_EN;
 		mmisc_ctl_val &= ~(V5_MMISC_CTL_MSA_OR_UNA_EN);
 		csr_write(CSR_MMISCCTL, mmisc_ctl_val);
 
