@@ -84,7 +84,7 @@ void harts_early_init(void)
 
 		mmisc_ctl_val = csr_read(CSR_MMISCCTL);
 		mmisc_ctl_val |= V5_MMISC_CTL_NON_BLOCKING_EN;
-		mmisc_ctl_val &= ~(V5_MMISC_CTL_MSA_OR_UNA_EN);
+		mmisc_ctl_val |= (V5_MMISC_CTL_MSA_OR_UNA_EN);
 		csr_write(CSR_MMISCCTL, mmisc_ctl_val);
 
 	}
